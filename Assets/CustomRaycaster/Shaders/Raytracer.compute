@@ -1,0 +1,165 @@
+#pragma kernel CSMain
+ 
+RWTexture2D<float4> render_texture;
+ 
+float3 camera_origin;
+float3 camera_direction;
+float3 camera_up;
+float3 camera_right;
+
+float width,height;
+float4 ray;
+
+float4x4 cameraToWorld;
+
+float hash(float2 p)  // replace this by something better
+{
+    p  = 50.0*frac( p*0.3183099 + float2(0.71,0.113));
+    return -1.0+2.0*frac( p.x*p.y*(p.x+p.y) );
+}
+
+// return value noise (in x) and its derivatives (in yz)
+float3 noised(float2 p)
+{
+    float2 i = floor( p );
+    float2 f = frac( p );
+	
+//#if 1
+    // quintic interpolation
+    float2 u = f*f*f*(f*(f*6.0-15.0)+10.0);
+    float2 du = 30.0*f*f*(f*(f-2.0)+1.0);
+/*#else
+    // cubic interpolation
+    float2 u = f*f*(3.0-2.0*f);
+    float2 du = 6.0*f*(1.0-f);
+#endif    */
+    
+    float va = hash( i + float2(0.0,0.0) );
+    float vb = hash( i + float2(1.0,0.0) );
+    float vc = hash( i + float2(0.0,1.0) );
+    float vd = hash( i + float2(1.0,1.0) );
+    
+    float k0 = va;
+    float k1 = vb - va;
+    float k2 = vc - va;
+    float k4 = va - vb - vc + vd;
+
+    return float3( va+(vb-va)*u.x+(vc-va)*u.y+(va-vb-vc+vd)*u.x*u.y, // value
+                 du*(u.yx*(va-vb-vc+vd) + float2(vb,vc) - va) );     // derivative                
+}
+
+float sphere (float3 p,float3 c,float r)
+{
+    return length (p-c)-r;
+}
+ 
+float map (float3 p)
+{
+    return sphere (p,float3(0.0,0.0,0.0),13.0);
+}
+ 
+float3 set_normal (float3 p)
+{
+    float3 x = float3 (0.01,0.00,0.00);
+    float3 y = float3 (0.00,0.01,0.00);
+    float3 z = float3 (0.00,0.00,0.01);
+    return normalize(float3(map(p+x)-map(p-x), map(p+y)-map(p-y), map(p+z)-map(p-z)));
+}
+ 
+float3 lighting ( float3 p)
+{
+    float3 AmbientLight = float3 (0.1,0.1,0.1);
+    float3 LightDirection = normalize(float3(4.0,10.0,-10.0));
+    float3 LightColor = float3 (1.0,1.0,1.0);
+    float3 NormalDirection = set_normal(p);
+    return  max ( dot(LightDirection, NormalDirection),0.0) * LightColor + AmbientLight;
+}
+
+float sample (float3 p) {
+	return min(map(float3(p.x, p.y - 10, p.z)), p.y - noised(p.xz).x);
+}
+
+float4 raymarch (float3 ro,float3 rd)
+{
+    for (int i=0;i<128;i++)
+    {
+        float t = sample(ro.xyz); //map(ro);
+        if (t<0.01) return float4(lighting(ro),1.0); else ro+=t*rd;
+    }
+    return float4(0.0,0.0,0.0,1.0);
+}
+ 
+/*[numthreads(8,8,1)]
+void CSMain (uint2 id : SV_DispatchThreadID)
+{
+    float2 resolution = float2 (height,width);
+    float2 coordinates = float2 (id.x,id.y);
+    float2 p = (2.0*coordinates.xy-resolution.xy)/resolution.y;
+    float3 rd = normalize(float3(p.xy,2.0));
+    render_texture[id] = raymarch(ray.xyz, rd);
+}*/
+
+/*[numthreads(8,8,1)]
+void CSMain (uint2 id : SV_DispatchThreadID)
+{
+    float2 resolution = float2 (height,width);
+    float2 coordinates = float2 (id.x,id.y);
+    //float2 screen_pos = (2.0*coordinates.xy-resolution.xy)/resolution.y;
+	float2 screen_pos = -1.0 + 2.0 * (float2 (id.x,id.y) / resolution.xy); // screenPos can range from -1 to 1
+	screen_pos.x *= resolution.x / resolution.y; // Correct aspect ratio
+
+
+    //float3 ray_dir = normalize(float3(p.xy,2.0));
+	float3 ray_dir = normalize(camera_right * screen_pos.x + camera_up * (screen_pos.y + 0.5) + camera_direction);
+    render_texture[id] = raymarch(camera_origin, ray_dir);
+}*/
+
+#define M_PI 3.1415926
+
+/*[numthreads(8,8,1)]
+void CSMain (uint2 id : SV_DispatchThreadID)
+{
+	float aspectRatio = width / height;
+	float fov = 100;
+
+	float Px = (2 * ((id.x + 0.5) / width) - 1) * tan(fov / 2 * M_PI / 180) * aspectRatio;
+	float Py = (1- (2 * ((id.y + 0.5) / height)) ) * tan(fov / 2 * M_PI / 180); 
+
+	float3 ray_origin = float3(0, 0, 0);
+	//float3 ray_direction = normalize(float3(Px, Py, -1) - ray_origin);
+
+	float3 rayOriginWorld = mul(ray_origin, cameraToWorld);
+	float3 rayPWorld = mul(float3(Px, Py, -1), cameraToWorld);
+
+
+	float3 rayDirection = rayPWorld - rayOriginWorld; 
+
+
+    float2 resolution = float2 (height,width);
+    float2 coordinates = float2 (id.x,id.y);
+    float2 p = (2.0*coordinates.xy-resolution.xy)/resolution.y;
+    float3 rd = normalize(float3(p.xy,2.0));
+    render_texture[id] = raymarch(camera_origin, normalize(rayDirection));
+}*/
+
+[numthreads(8,8,1)]
+void CSMain (uint2 id : SV_DispatchThreadID) 
+{
+    float2 resolution = float2 (height,width);
+    float2 coordinates = float2 (id.x,id.y);
+	float fov = 100;
+
+	//float Px = (2 * ((id.x + 0.5) / width) - 1) * tan(fov / 2 * M_PI / 180) * (resolution.x / resolution.y);  
+	//float Py = ((2 * ((id.y + 0.5) / height)) - 1) * tan(fov / 2 * M_PI / 180); 
+
+
+    //float2 screen_pos = (2.0*coordinates.xy-resolution.xy)/resolution.y;
+	float2 screen_pos = (-1.0 + 2.0 * (float2 (id.x + 0.5, id.y + 0.5) / resolution.xy)) * tan(fov / 2 * M_PI / 180); // screenPos can range from -1 to 1
+	//float2 screen_pos = float2(Px, Py);
+	screen_pos.x *= resolution.x / resolution.y; // Correct aspect ratio
+
+
+    //float3 ray_dir = normalize(float3(p.xy,2.0));
+	float3 ray_dir = normalize(camera_right * (screen_pos.x - 0.5) + camera_up * (screen_pos.y + 0.5) + camera_direction);
+    render_texture[id] = raymarch(camera_origin, ray_dir);
+}

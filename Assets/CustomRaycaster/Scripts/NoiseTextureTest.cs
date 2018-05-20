@@ -47,6 +47,7 @@ public class NoiseTextureTest : MonoBehaviour {
 	}
 
 	public void Update() {
+		//Graphics.Blit(camera.)
 		//RunShader();	
 	}
 }
