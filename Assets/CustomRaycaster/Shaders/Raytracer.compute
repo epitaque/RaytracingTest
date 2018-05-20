@@ -6,11 +6,11 @@ float3 camera_origin;
 float3 camera_direction;
 float3 camera_up;
 float3 camera_right;
+float camera_fov;
+float camera_fov_multiplier;
+float4x4 camera_to_world;
 
 float width,height;
-float4 ray;
-
-float4x4 cameraToWorld;
 
 float hash(float2 p)  // replace this by something better
 {
@@ -89,77 +89,21 @@ float4 raymarch (float3 ro,float3 rd)
     return float4(0.0,0.0,0.0,1.0);
 }
  
-/*[numthreads(8,8,1)]
-void CSMain (uint2 id : SV_DispatchThreadID)
-{
-    float2 resolution = float2 (height,width);
-    float2 coordinates = float2 (id.x,id.y);
-    float2 p = (2.0*coordinates.xy-resolution.xy)/resolution.y;
-    float3 rd = normalize(float3(p.xy,2.0));
-    render_texture[id] = raymarch(ray.xyz, rd);
-}*/
-
-/*[numthreads(8,8,1)]
-void CSMain (uint2 id : SV_DispatchThreadID)
-{
-    float2 resolution = float2 (height,width);
-    float2 coordinates = float2 (id.x,id.y);
-    //float2 screen_pos = (2.0*coordinates.xy-resolution.xy)/resolution.y;
-	float2 screen_pos = -1.0 + 2.0 * (float2 (id.x,id.y) / resolution.xy); // screenPos can range from -1 to 1
-	screen_pos.x *= resolution.x / resolution.y; // Correct aspect ratio
-
-
-    //float3 ray_dir = normalize(float3(p.xy,2.0));
-	float3 ray_dir = normalize(camera_right * screen_pos.x + camera_up * (screen_pos.y + 0.5) + camera_direction);
-    render_texture[id] = raymarch(camera_origin, ray_dir);
-}*/
-
 #define M_PI 3.1415926
 
-/*[numthreads(8,8,1)]
+[numthreads(8,8,1)]
 void CSMain (uint2 id : SV_DispatchThreadID)
 {
 	float aspectRatio = width / height;
-	float fov = 100;
 
-	float Px = (2 * ((id.x + 0.5) / width) - 1) * tan(fov / 2 * M_PI / 180) * aspectRatio;
-	float Py = (1- (2 * ((id.y + 0.5) / height)) ) * tan(fov / 2 * M_PI / 180); 
+	float Px = (2 * ((id.x + 0.5) / width) - 1) * camera_fov_multiplier * aspectRatio;
+	float Py = ((2 * ((id.y + 0.5) / height)) - 1) * camera_fov_multiplier; 
 
 	float3 ray_origin = float3(0, 0, 0);
-	//float3 ray_direction = normalize(float3(Px, Py, -1) - ray_origin);
+	float3 ray_direction = float3(Px, Py, -1) - ray_origin;
 
-	float3 rayOriginWorld = mul(ray_origin, cameraToWorld);
-	float3 rayPWorld = mul(float3(Px, Py, -1), cameraToWorld);
+	ray_origin = mul(ray_origin, camera_to_world);
+	ray_direction = mul(ray_direction, camera_to_world);
 
-
-	float3 rayDirection = rayPWorld - rayOriginWorld; 
-
-
-    float2 resolution = float2 (height,width);
-    float2 coordinates = float2 (id.x,id.y);
-    float2 p = (2.0*coordinates.xy-resolution.xy)/resolution.y;
-    float3 rd = normalize(float3(p.xy,2.0));
-    render_texture[id] = raymarch(camera_origin, normalize(rayDirection));
-}*/
-
-[numthreads(8,8,1)]
-void CSMain (uint2 id : SV_DispatchThreadID) 
-{
-    float2 resolution = float2 (height,width);
-    float2 coordinates = float2 (id.x,id.y);
-	float fov = 100;
-
-	//float Px = (2 * ((id.x + 0.5) / width) - 1) * tan(fov / 2 * M_PI / 180) * (resolution.x / resolution.y);  
-	//float Py = ((2 * ((id.y + 0.5) / height)) - 1) * tan(fov / 2 * M_PI / 180); 
-
-
-    //float2 screen_pos = (2.0*coordinates.xy-resolution.xy)/resolution.y;
-	float2 screen_pos = (-1.0 + 2.0 * (float2 (id.x + 0.5, id.y + 0.5) / resolution.xy)) * tan(fov / 2 * M_PI / 180); // screenPos can range from -1 to 1
-	//float2 screen_pos = float2(Px, Py);
-	screen_pos.x *= resolution.x / resolution.y; // Correct aspect ratio
-
-
-    //float3 ray_dir = normalize(float3(p.xy,2.0));
-	float3 ray_dir = normalize(camera_right * (screen_pos.x - 0.5) + camera_up * (screen_pos.y + 0.5) + camera_direction);
-    render_texture[id] = raymarch(camera_origin, ray_dir);
+    render_texture[id] = raymarch(camera_origin, normalize(ray_direction));
 }
