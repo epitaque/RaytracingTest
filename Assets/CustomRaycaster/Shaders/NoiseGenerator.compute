@@ -1,0 +1,77 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#include "./Noise/HLSL/SimplexNoise3D.hlsl"
+#define RESOLUTION 32
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> _densitiesRW;
+
+float4x4 _localToWorld; 
+float3 _scale;
+float3 _offset;
+int _resolution;
+
+float SimplexTerrain(float3 coords) {
+	float freq = (1/128.123);
+	float ampl = 0.9;
+
+	float result;
+ 
+	result = 0.5;
+
+
+	for(int i = 0; i < 6; i++) {
+		float noise = snoise(coords * freq) * ampl;
+
+		ampl *= 0.5;
+		freq *= 2;
+
+		result += noise;
+	}
+	//float3 grad = snoise_grad((float3)id/16.53254321);
+
+	result *= 20;
+	float ground = -coords.y + 8;
+	//result = snoise(coords * freq * );
+	result += ground;
+	return result;
+}
+
+float Sphere(float3 coords, float r) {
+	return coords.x * coords.x + coords.y * coords.y + coords.z * coords.z - r * r;
+}
+
+float Sample(float3 coords) {
+	//return -Sphere((float3)coords - float3(_resolution / 2, _resolution / 2, _resolution / 2), _resolution/2 - 1);
+	return SimplexTerrain((coords * _scale) + _offset * RESOLUTION + float3(0.4314314, 0.65324326, 0.52345234));
+}
+
+
+int GetDensityIndex(int x, int y, int z) {
+	return (x * _resolution * _resolution) + (y * _resolution) + z;
+}
+
+float3 FindNormal(float3 p) {
+	const float H = 0.001;
+	float dx = Sample(float3(p.x + H, p.y, p.z)) - Sample(float3(p.x - H, p.y, p.z));
+	float dy = Sample(float3(p.x, p.y + H, p.z)) - Sample(float3(p.x, p.y - H, p.z));
+	float dz = Sample(float3(p.x, p.y, p.z + H)) - Sample(float3(p.x, p.y, p.z - H));
+
+	return -normalize(float3(dx, dy, dz));
+}
+
+[numthreads(1,4,4)] 
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	//float4 pos = (float4)(id.x, id.y, id.z, 0);
+    //float3 coords = ((float3)id * _scale) + _offset * RESOLUTION + float3(0.4314314, 0.65324326, 0.52345234);
+
+	float4 result;
+	result.xyz = (float)snoise(float3(0, id.yz)); //Sample((float3)id);
+	//result.yzw = FindNormal((float3)id);
+
+	result.w = 1;
+
+	_densitiesRW[id.yz] = result;
+}
