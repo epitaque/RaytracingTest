@@ -24,6 +24,11 @@ public class RaycastingTest : MonoBehaviour {
 	[SerializeField]
 	public int MaxLOD = 4;
 
+	[Range (0, 64f)]
+	[SerializeField]
+	public float OctreeScale = 16;
+
+
 	Node root;
 
 	public void Start() {
@@ -85,7 +90,13 @@ public class RaycastingTest : MonoBehaviour {
 	}
 
 	public void OnDrawGizmos() {
-		DrawNodeRecursive(root, 16f);
+		DrawNodeRecursive(root, OctreeScale);
+	}
+
+	public void Update() {
+		if(UnityEngine.Input.GetKeyDown(KeyCode.R)) {
+			CastRay(Camera.main.transform.position / OctreeScale, Camera.main.transform.forward);
+		}
 	}
 
 	public void DrawNodeRecursive(Node node, float scale) {
@@ -107,6 +118,141 @@ public class RaycastingTest : MonoBehaviour {
 
 				}
 			}
+		}
+	}
+
+	public void CastRay(Vector3 origin, Vector3 direction) {
+		ray_octree_traversal(root, origin, direction);
+	}
+
+	sbyte a; // because an unsigned char is 8 bits
+
+	int first_node(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
+		sbyte answer = 0;   // initialize to 00000000
+		// select the entry plane and set bits
+		if(tx0 > ty0){
+			if(tx0 > tz0){ // PLANE YZ
+				if(tym < tx0) answer|=2;    // set bit at position 1
+				if(tzm < tx0) answer|=1;    // set bit at position 0
+				return (int) answer;
+			}
+		}
+		else {
+			if(ty0 > tz0){ // PLANE XZ
+				if(txm < ty0) answer|=4;    // set bit at position 2
+				if(tzm < ty0) answer|=1;    // set bit at position 0
+				return (int) answer;
+			}
+		}
+		// PLANE XY
+		if(txm < tz0) answer|=4;    // set bit at position 2
+		if(tym < tz0) answer|=2;    // set bit at position 1
+		return (int) answer;
+	}
+
+	int new_node(double txm, int x, double tym, int y, double tzm, int z){
+		if(txm < tym){
+			if(txm < tzm){return x;}  // YZ plane
+		}
+		else{
+			if(tym < tzm){return y;} // XZ plane
+		}
+		return z; // XY plane;
+	}
+
+	void proc_subtree (double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, Node node){
+		float txm, tym, tzm;
+		int currNode;
+
+		if(tx1 < 0 || ty1 < 0 || tz1 < 0) return;
+		if(node.IsLeaf || node.Children == null){
+			//cout << "Reached leaf node " << node->debug_ID << endl;
+			node.Color = Color.black;
+		}
+		else{ 
+			//cout << "Reached node " << node->debug_ID << endl;
+		}
+
+		txm = (float)(0.5*(tx0 + tx1));
+		tym = (float)(0.5*(ty0 + ty1));
+		tzm = (float)(0.5*(tz0 + tz1));
+
+		currNode = first_node(tx0,ty0,tz0,txm,tym,tzm);
+		do{
+			switch (currNode)
+			{
+			case 0: { 
+				proc_subtree(tx0,ty0,tz0,txm,tym,tzm,node.Children[a]);
+				currNode = new_node(txm,4,tym,2,tzm,1);
+				break;}
+			case 1: { 
+				proc_subtree(tx0,ty0,tzm,txm,tym,tz1,node.Children[1^a]);
+				currNode = new_node(txm,5,tym,3,tz1,8);
+				break;}
+			case 2: { 
+				proc_subtree(tx0,tym,tz0,txm,ty1,tzm,node.Children[2^a]);
+				currNode = new_node(txm,6,ty1,8,tzm,3);
+				break;}
+			case 3: { 
+				proc_subtree(tx0,tym,tzm,txm,ty1,tz1,node.Children[3^a]);
+				currNode = new_node(txm,7,ty1,8,tz1,8);
+				break;}
+			case 4: { 
+				proc_subtree(txm,ty0,tz0,tx1,tym,tzm,node.Children[4^a]);
+				currNode = new_node(tx1,8,tym,6,tzm,5);
+				break;}
+			case 5: { 
+				proc_subtree(txm,ty0,tzm,tx1,tym,tz1,node.Children[5^a]);
+				currNode = new_node(tx1,8,tym,7,tz1,8);
+				break;}
+			case 6: { 
+				proc_subtree(txm,tym,tz0,tx1,ty1,tzm,node.Children[6^a]);
+				currNode = new_node(tx1,8,ty1,8,tzm,7);
+				break;}
+			case 7: { 
+				proc_subtree(txm,tym,tzm,tx1,ty1,tz1,node.Children[7^a]);
+				currNode = 8;
+				break;}
+			}
+		} while (currNode<8);
+	}
+
+	void ray_octree_traversal(Node octree, Vector3 rayOrigin, Vector3 rayDirection){
+		a = 0;
+		Vector3 octreeCenter = octree.Min + Vector3.one * octree.Size * 0.5f;
+
+		// fixes for rays with negative direction
+		if(rayDirection[0] < 0){
+			rayOrigin[0] = octreeCenter[0] * 2 - rayOrigin[0];
+			rayDirection[0] = - rayDirection[0];
+			a |= 4 ; //bitwise OR (latest bits are XYZ)
+		}
+		if(rayDirection[1] < 0){
+			rayOrigin[1] = octreeCenter[1] * 2 - rayOrigin[1];
+			rayDirection[1] = - rayDirection[1];
+			a |= 2 ; 
+		}
+		if(rayDirection[2] < 0){
+			rayOrigin[2] = octreeCenter[2] * 2 - rayOrigin[2];
+			rayDirection[2] = - rayDirection[2];
+			a |= 1 ; 
+		}
+
+		double divx = 1 / rayDirection[0]; // IEEE stability fix
+		double divy = 1 / rayDirection[1];
+		double divz = 1 / rayDirection[2];
+
+		Vector3 omax = octree.Min + Vector3.one * octree.Size;
+
+		double tx0 = (octree.Min[0] - rayOrigin[0]) * divx;
+		double tx1 = (omax[0] - rayOrigin[0]) * divx;
+		double ty0 = (octree.Min[1] - rayOrigin[1]) * divy;
+		double ty1 = (omax[1] - rayOrigin[1]) * divy;
+		double tz0 = (octree.Min[2] - rayOrigin[2]) * divz;
+		double tz1 = (omax[2] - rayOrigin[2]) * divz;
+
+		if(Mathd.Max(Mathd.Max(tx0,ty0),tz0) < Mathd.Min(Mathd.Min(tx1,ty1),tz1) ){
+			proc_subtree(tx0,ty0,tz0,tx1,ty1,tz1, octree);
 		}
 	}
 }
