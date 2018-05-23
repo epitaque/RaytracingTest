@@ -28,9 +28,9 @@ public class RaycastingTest : MonoBehaviour {
 	[SerializeField]
 	public float OctreeScale = 16;
 
-
 	Node root;
-
+	List<Node> currentlyRayedNodes = new List<Node>();
+	Ray currentRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
 	public void Start() {
 		root = GenerateOctree((float x, float y, float z) => UtilFuncs.Sphere(x, y, z, 0.6f), MaxLOD);
 		Debug.Log("Generated octree. ContainsSurface: " + root.ContainsSurface);
@@ -90,6 +90,9 @@ public class RaycastingTest : MonoBehaviour {
 	}
 
 	public void OnDrawGizmos() {
+		Gizmos.color = Color.green;
+		//Debug.Log("Drawing ray at " + currentRay.origin + ", with direction " + currentRay.direction);
+		Gizmos.DrawRay(currentRay.origin * OctreeScale, currentRay.direction * 64);
 		DrawNodeRecursive(root, OctreeScale);
 	}
 
@@ -121,12 +124,25 @@ public class RaycastingTest : MonoBehaviour {
 		}
 	}
 
-	public void CastRay(Vector3 origin, Vector3 direction) {
-		ray_octree_traversal(root, origin, direction);
+	public void ClearLastRayNodeList() {
+		foreach(Node node in currentlyRayedNodes) {
+			//Debug.Log("Clearing node...");
+			node.Color = UtilFuncs.SinColor(node.Depth);
+			node.Color.a = 0.2f;
+		}
+		currentlyRayedNodes.Clear();
 	}
 
-	sbyte a; // because an unsigned char is 8 bits
-
+	public void CastRay(Vector3 origin, Vector3 direction) {
+		//ray_octree_traversal(root, origin, direction);
+		ClearLastRayNodeList();
+		currentRay = new Ray(origin, direction * 64); //  * OctreeScale * 1.5f
+		ray_step(root, origin, direction, currentlyRayedNodes);
+		for(int i = 0; i < currentlyRayedNodes.Count; i++) {
+			currentlyRayedNodes[i].Color = new Color(0, 1, 0, 1);
+		}
+	}
+	/*sbyte a; // because an unsigned char is 8 bits
 	int first_node(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
 		sbyte answer = 0;   // initialize to 00000000
 		// select the entry plane and set bits
@@ -149,7 +165,6 @@ public class RaycastingTest : MonoBehaviour {
 		if(tym < tz0) answer|=2;    // set bit at position 1
 		return (int) answer;
 	}
-
 	int new_node(double txm, int x, double tym, int y, double tzm, int z){
 		if(txm < tym){
 			if(txm < tzm){return x;}  // YZ plane
@@ -159,7 +174,6 @@ public class RaycastingTest : MonoBehaviour {
 		}
 		return z; // XY plane;
 	}
-
 	void proc_subtree (double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, Node node){
 		float txm, tym, tzm;
 		int currNode;
@@ -216,7 +230,6 @@ public class RaycastingTest : MonoBehaviour {
 			}
 		} while (currNode<8);
 	}
-
 	void ray_octree_traversal(Node octree, Vector3 rayOrigin, Vector3 rayDirection){
 		a = 0;
 		Vector3 octreeCenter = octree.Min + Vector3.one * octree.Size * 0.5f;
@@ -254,7 +267,51 @@ public class RaycastingTest : MonoBehaviour {
 		if(Mathd.Max(Mathd.Max(tx0,ty0),tz0) < Mathd.Min(Mathd.Min(tx1,ty1),tz1) ){
 			proc_subtree(tx0,ty0,tz0,tx1,ty1,tz1, octree);
 		}
+	}*/
+
+	void ray_step(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes) 
+	{ 
+		Vector3 nodeMax = node.Min + Vector3.one * node.Size;
+		float  tx0 = (node.Min.x - rayOrigin.x) / rayDirection.x; 
+		float  tx1 = (nodeMax.x - rayOrigin.x) / rayDirection.x;  
+		float  ty0 = (node.Min.y - rayOrigin.y) / rayDirection.y; 
+		float  ty1 = (nodeMax.y - rayOrigin.y) / rayDirection.y;  
+		float  tz0 = (node.Min.z - rayOrigin.z) / rayDirection.z; 
+		float  tz1 = (nodeMax.z - rayOrigin.z) / rayDirection.z;
+
+		proc_subtree(tx0,ty0,tz0,tx1,ty1,tz1, node, intersectedNodes); 
 	}
+
+	void proc_subtree( float tx0, float ty0, float tz0, 
+								float tx1, float ty1, float tz1, 
+								Node n, List<Node> intersectedNodes ) 
+	{ 
+		if ( !(Mathf.Max(tx0,ty0,tz0) < Mathf.Min(tx1,ty1,tz1)) ) 
+			return;
+
+		if (n.IsLeaf) 
+		{ 
+			intersectedNodes.Add(n);
+			return; 
+		}
+
+		float txM = 0.5f * (tx0 + tx1); 
+		float tyM = 0.5f * (ty0 + ty1); 
+		float tzM = 0.5f * (tz0 + tz1);
+
+		// Note, this is based on the assumption that the children are ordered in a particular 
+		// manner.  Different octree libraries will have to adjust. 
+		proc_subtree(tx0,ty0,tz0,txM,tyM,tzM, n.Children[0], intersectedNodes); // x0y0z0
+		proc_subtree(tx0,ty0,tzM,txM,tyM,tz1, n.Children[1], intersectedNodes); //x0y0z1
+		proc_subtree(tx0,tyM,tz0,txM,ty1,tzM, n.Children[2], intersectedNodes); //x0y1z0
+		proc_subtree(tx0,tyM,tzM,txM,ty1,tz1, n.Children[3], intersectedNodes); //x0y1z1
+		proc_subtree(txM,ty0,tz0,tx1,tyM,tzM, n.Children[4], intersectedNodes); //x1y0z0
+		proc_subtree(txM,ty0,tzM,tx1,tyM,tz1, n.Children[5], intersectedNodes); //x1y0z1
+		proc_subtree(txM,tyM,tz0,tx1,ty1,tzM, n.Children[6], intersectedNodes); //x1y1z0
+		proc_subtree(txM,txM,tzM,tx1,ty1,tz1, n.Children[7], intersectedNodes); //x1y1z1
+	}
+
+
 }
 }
 
