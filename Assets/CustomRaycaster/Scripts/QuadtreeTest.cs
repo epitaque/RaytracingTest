@@ -158,6 +158,20 @@ public class QuadtreeTest : MonoBehaviour {
 		float  ty0 = (node.Min.y - rayOrigin.y) / rayDirection.y; 
 		float  ty1 = (nodeMax.y - rayOrigin.y) / rayDirection.y;  
 
+        Vector3 octreeCenter = new Vector3(0, 0, 0);
+
+        if(rayDirection.x < 0){
+            rayOrigin.x = octreeCenter.x * 2 - rayOrigin.x;
+            rayDirection.x = - rayDirection.x;
+            //a |= 4 ; //bitwise OR (latest bits are XYZ)
+        }
+        if(rayDirection.y < 0){
+            rayOrigin.y = octreeCenter.y * 2 - rayOrigin.y;
+            rayDirection.y = - rayDirection.y;
+           // a |= 2 ; 
+        }
+
+
 		proc_subtree(tx0,ty0,tx1,ty1, node, intersectedNodes); 
 	}
 
@@ -165,7 +179,7 @@ public class QuadtreeTest : MonoBehaviour {
 								float tx1, float ty1, 
 								Node n, List<Node> intersectedNodes ) 
 	{ 
-		if ( !(Mathf.Max(tx0,ty0) < Mathf.Min(tx1,ty1)) ) 
+		if (!(Mathf.Max(tx0,ty0) < Mathf.Min(tx1,ty1)) ) 
 			return;
 
 		if (n.IsLeaf) 
