@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace QT {
+namespace OT {
 public class Node {
 	public Node Parent;
 	public Node[] Children;
@@ -15,7 +15,7 @@ public class Node {
 	public Color Color;
 }
 
-public class QuadtreeTest : MonoBehaviour {
+public class OctreeTest : MonoBehaviour {
 	[Range (0, 8)]
 	[SerializeField]
 	public int DrawDepth;
@@ -26,7 +26,7 @@ public class QuadtreeTest : MonoBehaviour {
 
 	[Range (0, 64f)]
 	[SerializeField]
-	public float QuadtreeScale = 16;
+	public float OctreeScale = 16;
 
 	Node root;
 	List<Node> currentlyRayedNodes = new List<Node>();
@@ -37,11 +37,11 @@ public class QuadtreeTest : MonoBehaviour {
     public GameObject RayPoint2;
 
 	public void Start() {
-		root = GenerateQuadtree((float x, float y, float z) => UtilFuncs.Sphere(x, y, z, 0.8f), MaxLOD);
-		Debug.Log("Generated Quadtree. ContainsSurface: " + root.ContainsSurface);
+		root = GenerateOctree((float x, float y, float z) => UtilFuncs.Sphere(x, y, z, 0.8f), MaxLOD);
+		Debug.Log("Generated Octree. ContainsSurface: " + root.ContainsSurface);
 	}
 
-	public Node GenerateQuadtree(UtilFuncs.Sampler sample, int maxDepth) {
+	public Node GenerateOctree(UtilFuncs.Sampler sample, int maxDepth) {
 		Node root = new Node();
 		root.Min = new Vector3(-1, -1, -1);
 		root.Size = 2f;
@@ -59,16 +59,16 @@ public class QuadtreeTest : MonoBehaviour {
 		if(node.Depth == maxDepth) {
 			node.IsLeaf = true;
 			Vector3 center = node.Min + (Vector3.one * node.Size) / 2f;
-			node.ContainsSurface = sample(center.x, center.y, 0) < 0 ? true : false;
+			node.ContainsSurface = sample(center.x, center.y, center.z) < 0 ? true : false;
 			node.CompletelyFilled = node.ContainsSurface;
 		}
 		else {
 			node.IsLeaf = false;
-			node.Children = new Node[4];
+			node.Children = new Node[8];
 
 			node.CompletelyFilled = true;
 
-			for(int i = 0; i < 4; i++) {
+			for(int i = 0; i < 8; i++) {
 				//Debug.Log("Created child with depth " + (node.Depth + 1));
 				node.Children[i] = new Node();
 				node.Children[i].Parent = node;
@@ -97,12 +97,12 @@ public class QuadtreeTest : MonoBehaviour {
 	public void OnDrawGizmos() {
 		Gizmos.color = Color.green;
 		//Debug.Log("Drawing ray at " + currentRay.origin + ", with direction " + currentRay.direction);
-		Gizmos.DrawRay(currentRay.origin * QuadtreeScale, currentRay.direction * 100);
+		Gizmos.DrawRay(currentRay.origin * OctreeScale, currentRay.direction * 100);
 		Gizmos.color = Color.blue;
-		Gizmos.DrawRay(reflectedRay.origin * QuadtreeScale, reflectedRay.direction * 100);
+		Gizmos.DrawRay(reflectedRay.origin * OctreeScale, reflectedRay.direction * 100);
 		
 
-		DrawNodeRecursive(root, QuadtreeScale);
+		DrawNodeRecursive(root, OctreeScale);
 	}
 
 	public void Update() {
@@ -127,7 +127,7 @@ public class QuadtreeTest : MonoBehaviour {
 			}
 		}
 		else if(!node.IsLeaf) {
-			for(int i = 0; i < 4; i++) {
+			for(int i = 0; i < 8; i++) {
 				if(node.Children[i].ContainsSurface) {
 					DrawNodeRecursive(node.Children[i], scale);
 
@@ -146,29 +146,46 @@ public class QuadtreeTest : MonoBehaviour {
 	}
 
 	public void CastRay(Vector3 origin, Vector3 direction) {
-		//ray_Quadtree_traversal(root, origin, direction);
+		//ray_Octree_traversal(root, origin, direction);
 		ClearLastRayNodeList();
-		//currentRay = new Ray(origin, direction * 64); //  * QuadtreeScale * 1.5f
+		//currentRay = new Ray(origin, direction * 64); //  * OctreeScale * 1.5f
 		ray_step(root, origin, direction, currentlyRayedNodes);
 		for(int i = 0; i < currentlyRayedNodes.Count; i++) {
-			currentlyRayedNodes[i].Color = new Color(0, 1, 0, 1f - ((float)i / (float)currentlyRayedNodes.Count));
+			currentlyRayedNodes[i].Color = new Color(0, 1, 0, 1f ); //- ((float)i / (float)currentlyRayedNodes.Count)
 		}
 	}
 
-	int find_firstNode(double tx0, double ty0, double txm, double tym){
+	int find_firstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
 		sbyte answer = 0;   // initialize to 00000000
 		// select the entry plane and set bits
-		if(tym < tx0) answer|=1;    // set bit at position 1
-		if(txm < ty0) answer|=2;    // set bit at position 2
-		return (int) answer;
-	}
-	int next_node(double txm, double tym, int x, int y){
-		if(txm > tym){
-			return x;
+		if(tx0 > ty0){
+			if(tx0 > tz0){ // PLANE YZ
+				if(tym < tx0) answer|=2;    // set bit at position 1
+				if(tzm < tx0) answer|=1;    // set bit at position 0
+				return (int) answer;
+			}
 		}
 		else {
-			return y;
+			if(ty0 > tz0){ // PLANE XZ
+				if(txm < ty0) answer|=4;    // set bit at position 2
+				if(tzm < ty0) answer|=1;    // set bit at position 0
+				return (int) answer;
+			}
 		}
+		// PLANE XY
+		if(txm < tz0) answer|=4;    // set bit at position 2
+		if(tym < tz0) answer|=2;    // set bit at position 1
+		return (int) answer;
+	}
+
+	int next_Node(double txm, double tym, double tzm, int x, int y, int z){
+		if(txm < tym){
+			if(txm < tzm){return x;}  // YZ plane
+		}
+		else{
+			if(tym < tzm){return y;} // XZ plane
+		}
+		return z; // XY plane;
 	}
 
 
@@ -176,18 +193,26 @@ public class QuadtreeTest : MonoBehaviour {
 	{ 
 		Vector3 nodeMax = node.Min + Vector3.one * node.Size;
         Vector3 octreeCenter = new Vector3(0, 0, 0);
-		sbyte a = 0;
+		sbyte a = 0; 
 
-        if(rayDirection.x < 0){
-            rayOrigin.x = octreeCenter.x * 2 - rayOrigin.x;
-            rayDirection.x = - rayDirection.x;
-            a |= 2; //bitwise OR (latest bits are XYZ)
-        }
-        if(rayDirection.y < 0){
-            rayOrigin.y = octreeCenter.x * 2 - rayOrigin.y;
-            rayDirection.y = - rayDirection.y;
-        	a |= 1; 
-        }
+		if (rayDirection.x < 0) 
+		{ 
+			rayOrigin.x = -rayOrigin.x; 
+			rayDirection.x = -(rayDirection.x); 
+			a |= 4; 
+		} 
+		if (rayDirection.y < 0) 
+		{ 
+			rayOrigin.y = -rayOrigin.y; 
+			rayDirection.y = -(rayDirection.y); 
+			a |= 2; 
+		} 
+		if (rayDirection.z < 0) 
+		{ 
+			rayOrigin.z = -rayOrigin.z; 
+			rayDirection.z = -(rayDirection.z); 
+			a |= 1; 
+		}
 
 		reflectedRay = new Ray(rayOrigin, rayDirection);
 
@@ -195,15 +220,17 @@ public class QuadtreeTest : MonoBehaviour {
 		float  tx1 = (nodeMax.x - rayOrigin.x) / rayDirection.x;  
 		float  ty0 = (node.Min.y - rayOrigin.y) / rayDirection.y; 
 		float  ty1 = (nodeMax.y - rayOrigin.y) / rayDirection.y;  
+		float  tz0 = (node.Min.z - rayOrigin.z) / rayDirection.z; 
+		float  tz1 = (nodeMax.z - rayOrigin.z) / rayDirection.z;  
 
-		proc_subtree(tx0,ty0,tx1,ty1, node, intersectedNodes, a); 
+		proc_subtree(tx0,ty0,tz0, tx1,ty1, tz1, node, intersectedNodes, a); 
 	}
 
-	void proc_subtree( float tx0, float ty0, 
-								float tx1, float ty1, 
-								Node n, List<Node> intersectedNodes , sbyte a ) 
+	void proc_subtree(float tx0, float ty0, float tz0,
+					  float tx1, float ty1, float tz1,
+					  Node n, List<Node> intersectedNodes , sbyte a) 
 	{ 
-		if (!(Mathf.Max(tx0,ty0) < Mathf.Min(tx1,ty1)) ) 
+		if (!(Mathf.Max(tx0,ty0,tz0) < Mathf.Min(tx1,ty1,tz1)) ) 
 			return;
 
 		if (n.IsLeaf) 
@@ -214,32 +241,50 @@ public class QuadtreeTest : MonoBehaviour {
 
 		float txM = 0.5f * (tx0 + tx1); 
 		float tyM = 0.5f * (ty0 + ty1); 
+		float tzM = 0.5f * (tz0 + tz1); 
 
-		int currNode = find_firstNode(tx0,ty0,txM,tyM);
+		//int currNode = find_firstNode(tx0,ty0,tz0,txM,tyM,tzM);
 
 
 		// Note, this is based on the assumption that the children are ordered in a particular 
-		// manner.  Different Quadtree libraries will have to adjust. 
-		do {
-			switch(currNode) {
-			case 0:
-				proc_subtree(tx0,ty0,txM,tyM, n.Children[a ^ 0], intersectedNodes, a); //x0y0
-				currNode = next_node(txM,tyM,1,2); 
-				break;
-			case 1:
-				proc_subtree(tx0,tyM,txM,ty1, n.Children[a ^ 1], intersectedNodes, a); //x0y1
-				currNode = next_node(txM,tyM,3,4); 
-				break;
-			case 2:
-				proc_subtree(txM,ty0,tx1,tyM, n.Children[a ^ 2], intersectedNodes, a); //x1y0
-				currNode = next_node(txM,tyM,4,3); 
-				break;
-			case 3:
-				proc_subtree(txM,tyM,tx1,ty1, n.Children[a ^ 3], intersectedNodes, a); //x1y1
-				currNode = next_node(txM,tyM,4,4); 
-				break;
+		// manner.  Different Octree libraries will have to adjust. 
+
+		proc_subtree(tx0,ty0,tz0,txM,tyM,tzM,n.Children[a], intersectedNodes, a); 
+		proc_subtree(tx0,ty0,tzM,txM,tyM,tz1,n.Children[1^a], intersectedNodes, a); 
+		proc_subtree(tx0,tyM,tz0,txM,ty1,tzM,n.Children[2^a], intersectedNodes, a); 
+		proc_subtree(tx0,tyM,tzM,txM,ty1,tz1,n.Children[3^a], intersectedNodes, a); 
+		proc_subtree(txM,ty0,tz0,tx1,tyM,tzM,n.Children[4^a], intersectedNodes, a); 
+		proc_subtree(txM,ty0,tzM,tx1,tyM,tz1,n.Children[5^a], intersectedNodes, a); 
+		proc_subtree(txM,tyM,tz0,tx1,ty1,tzM,n.Children[6^a], intersectedNodes, a); 
+		proc_subtree(txM,txM,tzM,tx1,ty1,tz1,n.Children[7], intersectedNodes, a); 
+		/*do {
+			switch(currNode) { 
+			case 0 : proc_subtree(tx0,ty0,tz0,txM,tyM,tzM,n.Children[a], intersectedNodes, a); 
+				currNode = next_Node(txM,tyM,tzM,4,2,1); 
+				break; 
+			case 1 : proc_subtree(tx0,ty0,tzM,txM,tyM,tz1,n.Children[1^a], intersectedNodes, a); 
+				currNode = next_Node(txM,tyM,tz1,5,3,8); 
+				break; 
+			case 2 : proc_subtree(tx0,tyM,tz0,txM,ty1,tzM,n.Children[2^a], intersectedNodes, a); 
+				currNode = next_Node(txM,ty1,tzM,6,8,3); 
+				break; 
+			case 3 : proc_subtree(tx0,tyM,tzM,txM,ty1,tz1,n.Children[3^a], intersectedNodes, a); 
+				currNode = next_Node(txM,ty1,tz1,7,8,8); 
+				break; 
+			case 4 : proc_subtree(txM,ty0,tz0,tx1,tyM,tzM,n.Children[4^a], intersectedNodes, a); 
+				currNode = next_Node(tx1,tyM,tzM,8,6,5); 
+				break; 
+			case 5 : proc_subtree(txM,ty0,tzM,tx1,tyM,tz1,n.Children[5^a], intersectedNodes, a); 
+				currNode = next_Node(tx1,tyM,tz1,8,7,8); 
+				break; 
+			case 6 : proc_subtree(txM,tyM,tz0,tx1,ty1,tzM,n.Children[6^a], intersectedNodes, a); 
+				currNode = next_Node(tx1,ty1,tzM,8,8,7); 
+				break; 
+			case 7 : proc_subtree(txM,txM,tzM,tx1,ty1,tz1,n.Children[7], intersectedNodes, a); 
+				currNode = 8; 
+				break; 
 			} 
-		} while(currNode < 4);
+		} while(currNode < 8);*/
 	}
 
 
