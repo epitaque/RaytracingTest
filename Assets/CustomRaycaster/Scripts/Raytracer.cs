@@ -31,8 +31,14 @@ public class Raytracer : MonoBehaviour
         compute_shader.SetFloat("height",Screen.height);
         compute_shader.SetFloat("width",Screen.width);      
         compute_shader.Dispatch(0,render_texture.width/8,render_texture.height/8,1);
+
+		
     }
    
+	void UpdateTexture() {
+
+	}
+
 	void OnDrawGizmos() {
 		float height = 5;
 		float width = (int)(height * Camera.main.aspect);
