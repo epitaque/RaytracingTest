@@ -96,6 +96,8 @@ public class SVO {
 	public struct voxel {
 		public bool containsSurface;
 		public bool completelyFull;
+		public ushort pointer;
+
 		public byte leafMask;
 		public byte validMask;
 		public ushort childPointer;
@@ -132,9 +134,17 @@ public class SVO {
 					byte validMask = 0;
 					byte leafMask = 0;
 
+					ushort childPointer = 0;
+
 					for(ulong i = 0; i < 8; i++) {
 						voxel v = buffers[level - 1][i];
+						bool foundfirst = false;
 						if(v.containsSurface) {
+							if(!foundfirst) {
+								childPointer = v.pointer;
+								foundfirst = true;
+							}
+
 							numActiveVoxels++;
 							validMask |= (byte)(1 << (int)i);
 							if(v.completelyFull) {
@@ -147,12 +157,19 @@ public class SVO {
 						if(numActiveVoxels == 8) {
 							completelyFull = true;
 						}
-						// Write to disk if not a leaf
-						voxel v;
-						v.validMask = validMask;
-						v.leafMask = leafMask;
+						else {
+							// Write to disk if not a leaf
+							voxel v;
+							v.validMask = validMask;
+							v.leafMask = leafMask;
+							v.childPointer = 0;
+							v.containsSurface = true;
+							v.completelyFull = false;
+							v.pointer = (ushort)voxels.Count;
+							buffers[level][currentVoxel % 8 * (int)Mathf.Pow(2, level)];
+							voxels.Add(v);
 
-						voxels.Add(v);
+						}
 					}
 
 				}
@@ -178,6 +195,7 @@ public class SVO {
 		v.childPointer = 0;
 		v.leafMask = 0;
 		v.validMask = 0;
+		v.pointer = 0;
 		return v;
 	}
 
