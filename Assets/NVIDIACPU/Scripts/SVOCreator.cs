@@ -93,113 +93,133 @@ public class SVO {
 
 		return childOffset;
 	}*/
-	public struct voxel {
-		public bool containsSurface;
-		public bool completelyFull;
-		public ushort pointer;
+	public class Voxel {
+		public bool PartiallyFull;
+		public bool CompletelyFull;
 
-		public byte leafMask;
-		public byte validMask;
-		public ushort childPointer;
+		public byte LeafMask;
+		public byte ValidMask;
+		public ushort ChildPointer;
 	}
 
 	public void BuildSVO(int maxDepth) {
-		int resolution = (int)Mathf.Pow(2, maxDepth);
-		ulong resolution_3 = (ulong)(resolution * resolution * resolution);
-
-		// step 1: initial state
-		voxel[][] buffers = new voxel[maxDepth][];
-		ulong[] divisors = new ulong[maxDepth];
-
+		Voxel[][] buffers = new Voxel[maxDepth][];
 		for(int i = 0; i < maxDepth; i++) {
-			buffers[i] = new voxel[8];
-			divisors[i] = (ulong)Mathf.Pow(2, i);
+			buffers[i] = new Voxel[8];
 		}
 
 		List<uint> childDecsriptors = new List<uint>();
-		List<voxel> voxels = new List<voxel>();
+		List<Voxel> voxels = new List<Voxel>();
 
-		for(ulong currentVoxel = 0; currentVoxel < resolution_3; currentVoxel += 8) {
-			// step 2: read 8 voxels into lowest buffer
-			for(ulong i = 0; i < 8; i++) {
-				buffers[0][i] = getVoxelFromMorton(currentVoxel + i);
-			}
-			
-			for(int level = 1; level < maxDepth; level++) {
-				if(currentVoxel % divisors[level] == 0) {
-					int numActiveVoxels = 0;
-					bool partiallyFull = false;
-					bool completelyFull = false;
+		ulong currentVoxel = 0;
 
-					byte validMask = 0;
-					byte leafMask = 0;
+		FillBuffer(buffers, maxDepth, ref currentVoxel, voxels);
 
-					ushort childPointer = 0;
+		
+	}
+  
+	public enum BufferState {
+		CompletelyFull,
+		PartiallyFull,
+		Empty
+	}
 
-					for(ulong i = 0; i < 8; i++) {
-						voxel v = buffers[level - 1][i];
-						bool foundfirst = false;
-						if(v.containsSurface) {
-							if(!foundfirst) {
-								childPointer = v.pointer;
-								foundfirst = true;
-							}
+	public class BufferInfo {
+		public bool PartiallyFull;
+		public bool CompletelyFull;
 
-							numActiveVoxels++;
-							validMask |= (byte)(1 << (int)i);
-							if(v.completelyFull) {
-								leafMask |= (byte)(1 << (int)i);
-							}
-						}
-					}
-					if(numActiveVoxels > 0) {
-						partiallyFull = true;
-						if(numActiveVoxels == 8) {
-							completelyFull = true;
-						}
-						else {
-							// Write to disk if not a leaf
-							voxel v;
-							v.validMask = validMask;
-							v.leafMask = leafMask;
-							v.childPointer = 0;
-							v.containsSurface = true;
-							v.completelyFull = false;
-							v.pointer = (ushort)voxels.Count;
-							buffers[level][currentVoxel % 8 * (int)Mathf.Pow(2, level)];
-							voxels.Add(v);
+		public byte LeafMask;
+		public byte ValidMask;
+		public ushort ChildPointer;
+	}
 
-						}
-					}
-
-				}
-			}
+	public BufferInfo FillBuffer(Voxel[][] buffers, int depth, ref ulong currentVoxel, List<Voxel> voxelList) {
+		Voxel[] buffer = buffers[depth];
+		// clear the buffer
+		for(int i = 0; i < 8; i++) {
+			buffer[i] = null;
 		}
 
+		BufferInfo info = new BufferInfo();
 
+		if(depth != 0) {
+			int fullCount = 0;
 
+			for(int i = 0; i < 8; i++) {
+				// fill lower depth buffer
+				BufferInfo bufferInfo = FillBuffer(buffers, depth - 1, ref currentVoxel, voxelList);
 
+				// fill the current voxel in this buffer if it contains surface
+				if(bufferInfo.PartiallyFull) {
+					info.PartiallyFull = true;
+
+					Voxel v = new Voxel();
+					v.CompletelyFull = bufferInfo.CompletelyFull;
+					v.PartiallyFull = bufferInfo.PartiallyFull;
+					v.LeafMask = bufferInfo.LeafMask;
+					v.ValidMask = bufferInfo.ValidMask;
+					buffer[i] = v;
+
+					info.ValidMask |= (byte)(1 << i);
+					if(bufferInfo.CompletelyFull) {
+						info.LeafMask |= (byte)(1 << i);
+					}
+				} 
+				
+				fullCount++;
+			}
+
+			if(fullCount == 8) { info.CompletelyFull = true; }
+
+			// after filling buffer, add all children to the voxel list, keeping track of the pointer to the first child
+			bool firstChild = true;
+
+			for(int i = 0; i < 8; i++) {
+				if(buffer[i] != null) {
+					if(firstChild == true) {
+						info.ChildPointer = (ushort)voxelList.Count;
+					}
+					voxelList.Add(buffer[i]);
+				}
+			}
+
+		}
+		else {
+			int fullCount = 0;
+
+			for(ulong i = 0; i < 8; i++) {
+				Voxel v = GetVoxelFromMorton(currentVoxel + i);
+				buffers[0][i] = v;
+
+				if(v.CompletelyFull) {
+					fullCount++;
+					info.PartiallyFull = true;
+					info.ValidMask |= (byte)(1 << (int)i);
+					info.LeafMask |= (byte)(1 << (int)i);
+				}
+
+				currentVoxel++;
+			}
+
+			if(fullCount == 8) {
+				info.CompletelyFull = true;
+			}
+		}
+		return info;
 	}
 
-	public void fillBuffer(int maxDepth, int currentDepth) {
-
-	}
-
-	voxel getVoxelFromMorton(ulong morton) {
+	Voxel GetVoxelFromMorton(ulong morton) {
 		int x = 0, y = 0, z = 0;
-		mortonDecode(morton, ref x, ref y, ref z);
-		voxel v;
-		v.containsSurface = UtilFuncs.Sample(x, y, z) > 0;
-		v.completelyFull = true;
-
-		v.childPointer = 0;
-		v.leafMask = 0;
-		v.validMask = 0;
-		v.pointer = 0;
+		MortonDecode(morton, ref x, ref y, ref z);
+		Voxel v = new Voxel();
+		v.PartiallyFull = UtilFuncs.Sample(x, y, z) > 0;
+		if(v.PartiallyFull) {
+			v.CompletelyFull = true;
+		}
 		return v;
 	}
 
-	void mortonDecode(ulong morton, ref int x, ref int y, ref int z){
+	void MortonDecode(ulong morton, ref int x, ref int y, ref int z){
 		x = 0;
 		y = 0;
 		z = 0;
