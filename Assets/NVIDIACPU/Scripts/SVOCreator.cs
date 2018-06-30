@@ -114,16 +114,8 @@ public class SVO {
 		ulong currentVoxel = 0;
 
 		FillBuffer(buffers, maxDepth, ref currentVoxel, voxels);
-
-		
 	}
   
-	public enum BufferState {
-		CompletelyFull,
-		PartiallyFull,
-		Empty
-	}
-
 	public class BufferInfo {
 		public bool PartiallyFull;
 		public bool CompletelyFull;
