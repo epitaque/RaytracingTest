@@ -1,0 +1,200 @@
+
+using System.Collections.Generic;
+using UnityEngine;
+  
+public class SVO {
+	uint[] svodata; // consists of pure child descriptors. just getting a pure basic svo working.
+	// structure:
+	// child pointer | valid mask | leaf mask
+	//    16			   8			8
+	
+	//int pageSize = 4096;
+	int maxDescriptors = 100000;
+	ulong svoIndex = 0;
+
+	public SVO() {
+		svodata = new uint[maxDescriptors];
+
+		BuildSVO(2);
+		//MortonTest();
+	}
+
+
+	public class Voxel {
+		public bool PartiallyFull;
+		public bool CompletelyFull;
+
+		public byte LeafMask;
+		public byte ValidMask;
+		public ushort ChildPointer;
+
+		public int Level;
+	}
+
+	public void BuildSVO(int maxDepth) {
+		Voxel[][] buffers = new Voxel[maxDepth+1][];
+		for(int i = 0; i < maxDepth+1; i++) {
+			buffers[i] = new Voxel[8];
+		}
+
+		List<uint> childDecsriptors = new List<uint>();
+		List<Voxel> voxels = new List<Voxel>();
+
+		uint currentVoxel = 0;
+
+		BufferInfo rootInfo = FillBuffer(buffers, maxDepth, ref currentVoxel, voxels);
+
+		Voxel rv = new Voxel();
+		rv.ChildPointer = rootInfo.ChildPointer;
+		rv.CompletelyFull = rootInfo.CompletelyFull;
+		rv.LeafMask = rootInfo.LeafMask;
+		rv.Level = maxDepth + 1;
+		rv.ValidMask = rootInfo.ValidMask;
+		rv.PartiallyFull = rootInfo.PartiallyFull;
+
+
+		voxels.Add(rv);
+
+		string s = "Voxels: ";
+		for(int i = 0; i < voxels.Count; i++) {
+			Voxel v = voxels[i];
+			s += "[" + i + ", lvl" + v.Level  + ", cptr" + v.ChildPointer + ", vm" + System.Convert.ToString(v.ValidMask, 2) + ", lm" + System.Convert.ToString(v.LeafMask, 2) + "]\n";
+		}
+		for(int i = voxels.Count - 1; i >= 0; i--) {
+			Voxel v = voxels[i];
+			if(v.ChildPointer != 0) {
+				v.ChildPointer = (ushort)(voxels.Count - 1 - v.ChildPointer);
+			}
+			uint vcode = constructChildDescriptor(v.ChildPointer, v.ValidMask, v.LeafMask);
+			childDecsriptors.Add(vcode);
+		}
+		Debug.Log(s);
+
+		s = "Decoded Voxels (array of child descriptors): ";
+		for(int i = 0; i < childDecsriptors.Count; i++) {
+			ChildDescriptorInfo cd = decodeChildDescriptor(childDecsriptors[i]);
+			s += "[cptr" + cd.childPointer + ", vm" + System.Convert.ToString(cd.validMask, 2) + ", lm" + System.Convert.ToString(cd.leafMask, 2) + "]\n";
+		}
+		Debug.Log(s);
+
+
+	}
+  	public class BufferInfo {
+		public bool PartiallyFull;
+		public bool CompletelyFull;
+
+		public byte LeafMask;
+		public byte ValidMask;
+		public ushort ChildPointer;
+	}
+
+	public BufferInfo FillBuffer(Voxel[][] buffers, int level, ref uint currentVoxel, List<Voxel> voxelList) {
+		//Debug.Log("Filling buffer at level " + level);
+		Voxel[] buffer = buffers[level];
+		// clear the buffer
+		for(int i = 0; i < 8; i++) {
+			buffer[i] = null;
+		}
+
+		BufferInfo info = new BufferInfo();
+
+		if(level != 0) {
+			int fullCount = 0;
+
+			for(int i = 0; i < 8; i++) {
+				// fill lower depth buffer
+				BufferInfo bufferInfo = FillBuffer(buffers, level - 1, ref currentVoxel, voxelList);
+
+				// fill the current voxel in this buffer if it contains surface
+				if(bufferInfo.PartiallyFull) {
+					info.PartiallyFull = true;
+
+					Voxel v = new Voxel();
+					v.CompletelyFull = bufferInfo.CompletelyFull;
+					v.PartiallyFull = bufferInfo.PartiallyFull;
+					v.LeafMask = bufferInfo.LeafMask;
+					v.ValidMask = bufferInfo.ValidMask;
+					v.Level = level;
+					v.ChildPointer = bufferInfo.ChildPointer;
+					buffer[i] = v;
+
+					info.ValidMask |= (byte)(1 << i);
+					if(bufferInfo.CompletelyFull) {
+						info.LeafMask |= (byte)(1 << i);
+						fullCount++;
+					}
+				} 
+			}
+
+			if(fullCount == 8) { 
+				info.CompletelyFull = true; 
+			}
+			else {
+				// after filling buffer, add all children to the voxel list, keeping track of the pointer to the first child
+				bool firstChild = true;
+
+				if(!info.CompletelyFull) {
+					for(int i = 0; i < 8; i++) {
+						if(buffer[i] != null) {
+							if(firstChild == true) {
+								info.ChildPointer = (ushort)voxelList.Count;
+							}
+							voxelList.Add(buffer[i]);
+						}
+					}
+				}
+			}
+		}
+		else {
+			int fullCount = 0;
+
+			for(ulong i = 0; i < 8; i++) {
+				Voxel v = GetVoxelFromMorton(currentVoxel++);
+				buffers[0][i] = v;
+
+				if(v.CompletelyFull) {
+					fullCount++;
+					info.PartiallyFull = true;
+					info.ValidMask |= (byte)(1 << (int)i);
+					info.LeafMask |= (byte)(1 << (int)i);
+				}
+			}
+
+			if(fullCount == 8) {
+				info.CompletelyFull = true;
+			}
+		}
+		return info;
+	}
+
+	Voxel GetVoxelFromMorton(uint morton) {
+		uint x = 0, y = 0, z = 0;
+		Morton.Morton_3D_Decode_10bit(morton, ref x, ref y, ref z);
+		Voxel v = new Voxel();
+		v.PartiallyFull = UtilFuncs.Sample(x, y, z) > 0;
+		if(v.PartiallyFull) {
+			v.CompletelyFull = true;
+		}
+		//Debug.Log("v coords: " + "(" + x + ", " + y + ", " + z + ")");
+		//Debug.Log("v.PartiallyFull: " + v.PartiallyFull);
+		return v;
+	}
+	
+	uint constructChildDescriptor(ushort childPointer, byte validMask, byte leafMask) {
+		return (uint)(((int)childPointer << 16) + ((int)validMask << 8) + (int)leafMask);
+	}
+
+	struct ChildDescriptorInfo {
+		public ushort childPointer;
+		public byte validMask;
+		public byte leafMask;
+	}
+
+	ChildDescriptorInfo decodeChildDescriptor(uint cd) {
+		ChildDescriptorInfo info = new ChildDescriptorInfo();
+		info.leafMask = (byte)(cd & 255);
+		info.validMask = (byte)(cd >> 8 & 255);
+		info.childPointer = (ushort)(cd >> 16 & 65535);
+		return info;
+	}
+}

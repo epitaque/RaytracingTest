@@ -31,9 +31,13 @@ public class RaycastingTest : MonoBehaviour {
 	Node root;
 	List<Node> currentlyRayedNodes = new List<Node>();
 	Ray currentRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
+
+	SVO svo;
+
 	public void Start() {
-		root = GenerateOctree((float x, float y, float z) => UtilFuncs.Sphere(x, y, z, 0.6f), MaxLOD);
-		Debug.Log("Generated octree. ContainsSurface: " + root.ContainsSurface);
+		svo = new SVO();
+		//root = GenerateOctree((float x, float y, float z) => UtilFuncs.Sphere(x, y, z, 0.6f), MaxLOD);
+		//Debug.Log("Generated octree. ContainsSurface: " + root.ContainsSurface);
 	}
 
 	public Node GenerateOctree(UtilFuncs.Sampler sample, int maxDepth) {
@@ -90,10 +94,13 @@ public class RaycastingTest : MonoBehaviour {
 	}
 
 	public void OnDrawGizmos() {
+		if(!Application.isPlaying) return;
 		Gizmos.color = Color.green;
 		//Debug.Log("Drawing ray at " + currentRay.origin + ", with direction " + currentRay.direction);
 		Gizmos.DrawRay(currentRay.origin * OctreeScale, currentRay.direction * 64);
 		DrawNodeRecursive(root, OctreeScale);
+
+		svo.DrawGizmos();
 	}
 
 	public void Update() {
@@ -134,10 +141,14 @@ public class RaycastingTest : MonoBehaviour {
 	}
 
 	public void CastRay(Vector3 origin, Vector3 direction) {
+		Debug.Log("Casting ray...");
+		currentRay = new Ray(origin, direction * 64); //  * OctreeScale * 1.5f
+		svo.Raycast(origin, direction);
+		return;
+
 		//ray_octree_traversal(root, origin, direction);
 		ClearLastRayNodeList();
-		currentRay = new Ray(origin, direction * 64); //  * OctreeScale * 1.5f
-		ray_step(root, origin, direction, currentlyRayedNodes);
+		//ray_step(root, origin, direction, currentlyRayedNodes);
 		for(int i = 0; i < currentlyRayedNodes.Count; i++) {
 			currentlyRayedNodes[i].Color = new Color(0, 1, 0, 1);
 		}
