@@ -1,5 +1,5 @@
-public static class Morton {
-	public static ulong mortonEncode(int x, int y, int z)
+public static class MortonUtil {
+	public static ulong MortonEncode(int x, int y, int z)
 	{
 		ulong answer = 0;
 		for (ulong i = 0; i < (sizeof(int) * 8); ++i)
@@ -9,7 +9,7 @@ public static class Morton {
 		return answer;
 	}
 
-	public static void mortonDecode(ulong morton, ref int x, ref int y, ref int z)
+	public static void MortonDecode(ulong morton, ref int x, ref int y, ref int z)
 	{
 		x = 0;
 		y = 0;

@@ -41,10 +41,11 @@ public static class UtilFuncs {
         float r = 8f;
 		float r2 = 0.05f;
 		float result = 0f;
-        float ground = -5.5f + y; 
-
-		result += ground;
-
+        float ground = -2.5f + y; 
+		float xwall = -2.5f + x;
+		//result += Sphere(x, y , z, 6);
+		//result += Mathf.Min(xwall, ground);
+		result = -ground;
 		//result += (UnityEngine.Mathf.PerlinNoise(x * r2, z * r2) - 0.5f) * 15;
 
 		//result += myNoise.GetNoise(x * r, y * r, z * r) * 50;

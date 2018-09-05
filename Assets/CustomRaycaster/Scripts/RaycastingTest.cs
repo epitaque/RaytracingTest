@@ -2,18 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 namespace RT {
-public class Node {
-	public Node Parent;
-	public Node[] Children;
-
-	public Vector3 Min;
-	public float Size;
-	public bool IsLeaf;
-	public int Depth;
-	public bool ContainsSurface;
-	public bool CompletelyFilled;
-	public Color Color;
-}
 
 public class RaycastingTest : MonoBehaviour {
 	[Range (0, 8)]
@@ -98,9 +86,9 @@ public class RaycastingTest : MonoBehaviour {
 		Gizmos.color = Color.green;
 		//Debug.Log("Drawing ray at " + currentRay.origin + ", with direction " + currentRay.direction);
 		Gizmos.DrawRay(currentRay.origin * OctreeScale, currentRay.direction * 64);
-		DrawNodeRecursive(root, OctreeScale);
+		//DrawNodeRecursive(root, OctreeScale);
 
-		svo.DrawGizmos();
+		SVOVisualizer.DrawSVOGizmos(svo);
 	}
 
 	public void Update() {
@@ -143,7 +131,7 @@ public class RaycastingTest : MonoBehaviour {
 	public void CastRay(Vector3 origin, Vector3 direction) {
 		Debug.Log("Casting ray...");
 		currentRay = new Ray(origin, direction * 64); //  * OctreeScale * 1.5f
-		svo.Raycast(origin, direction);
+		SVOFunctions.CastRay(svo, new Ray(origin, direction));
 		return;
 
 		//ray_octree_traversal(root, origin, direction);

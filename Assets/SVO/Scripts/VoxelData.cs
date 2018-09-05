@@ -1,5 +1,6 @@
 using UnityEngine;
 
+namespace RT {
 public class VoxelData {
 	public bool[][] Data;
 	public int Resolution;
@@ -56,9 +57,10 @@ public class VoxelData {
 
 
 		return Data[lod][GetIndex(x/size, y/size, z/size, 1 << lod)];
-	}
+	} 
 
 	public int GetIndex(int x, int y, int z, int res) {
 		return z * res * res + y * res + x;
 	}
+}
 }
