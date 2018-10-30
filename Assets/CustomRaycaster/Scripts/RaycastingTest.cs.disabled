@@ -23,7 +23,7 @@ public class RaycastingTest : MonoBehaviour {
 	SVO svo;
 
 	public void Start() {
-		svo = new SVO();
+		svo = new NaiveSVO();
 		//root = GenerateOctree((float x, float y, float z) => UtilFuncs.Sphere(x, y, z, 0.6f), MaxLOD);
 		//Debug.Log("Generated octree. ContainsSurface: " + root.ContainsSurface);
 	}
@@ -131,7 +131,7 @@ public class RaycastingTest : MonoBehaviour {
 	public void CastRay(Vector3 origin, Vector3 direction) {
 		Debug.Log("Casting ray...");
 		currentRay = new Ray(origin, direction * 64); //  * OctreeScale * 1.5f
-		SVOFunctions.CastRay(svo, new Ray(origin, direction));
+		//SVOFunctions.CastRay(svo, new Ray(origin, direction));
 		return;
 
 		//ray_octree_traversal(root, origin, direction);

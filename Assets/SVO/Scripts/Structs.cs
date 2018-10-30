@@ -2,13 +2,13 @@ using UnityEngine;
 using System.Collections.Generic;
 
 namespace RT {
-public class SVO {
+/*public class SVO {
 	// structure:
 	// child pointer | valid mask | leaf mask
 	//    16			   8			8
 	public uint[] ChildDescriptors;
 	public List<ColoredBox> GizmoBoxes;
-}
+}*/
 
 public struct ColoredBox {
 	public Color Color;
