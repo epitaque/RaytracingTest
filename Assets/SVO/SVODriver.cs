@@ -5,7 +5,11 @@ public class SVODriver : MonoBehaviour {
 	SVO svo;
 	ColoredBox[] debugBoxes;
 	public SampleFunctions.Type sampleType = SampleFunctions.Type.FlatGround;
+
+	[Range(1, 8)]
 	public int maxLevel = 4;
+
+	[Range(1, 256)]
 	public float scale = 16;
 	public bool onlyShowLeaves = false;
 	
@@ -14,7 +18,8 @@ public class SVODriver : MonoBehaviour {
 	private Vector3 lastRayStartPosition = Vector3.zero;
 	private Vector3 lastRayEndPosition = Vector3.zero;
 
-	Ray currentRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
+	private Ray currentRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
+	private Ray reflectedRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
 	private ColoredBox[] intersectedNodesBoxes;
 
 	public void Start() {
@@ -58,6 +63,7 @@ public class SVODriver : MonoBehaviour {
 		}
 		Gizmos.color = Color.blue;
 		Gizmos.DrawLine(lastRayStartPosition, currentRay.direction * 1000);
+		svo.DrawGizmos(scale);
     }
 }
 }
