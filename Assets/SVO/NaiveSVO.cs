@@ -12,37 +12,15 @@ public class NaiveSVO : SVO {
 	 */
 	private Ray reflectedRay;
 
-	public class Node {
-		public Vector3 position;
-		public double size;
-		public bool leaf;
-		public int level;
-
+	public class Node : SVONode {
 		public Node(Vector3 position, double size, int level, bool leaf) {
-			this.position = position;
-			this.size = size;
-			this.leaf = leaf;
-			this.level = level;
+			Position = position;
+			Size = size;
+			Level = level;
+			Leaf = leaf;
 		}
 
-		public Vector3 GetCenter() {
-			return position + Vector3.one * (float)(size/2d);
-		}
-
-		public ColoredBox GetDebugBox() {
-			ColoredBox box = new ColoredBox();
-			box.Center = position + Vector3.one * (float)(size / 2d);
-			box.Color = UtilFuncs.SinColor(level * 2f);
-			box.Color.a = 0.2f;
-			box.Size = Vector3.one * (float)size;
-			return box;
-		}
-
-		public override string ToString() {
-			return "[Node, Position " + position + ", Size: " + size + ", Leaf: " + leaf + ", Level: " + level + "]";
-		}
-
-		public Node[] children;
+		public Node[] Children;
 	}
 
 	public NaiveSVO(UtilFuncs.Sampler sample, int maxLevel) {
@@ -69,8 +47,8 @@ public class NaiveSVO : SVO {
 	 */
 	public Node BuildTreeAux(Node node, int level) {
 		// Node is leaf. Determine if within surface. If so, return node.
-		if(node.leaf) {
-			float s = sample(node.position.x + (float)(node.size / 2), node.position.y + (float)(node.size / 2), node.position.z + (float)(node.size / 2));
+		if(node.Leaf) {
+			float s = sample(node.Position.x + (float)(node.Size / 2), node.Position.y + (float)(node.Size / 2), node.Position.z + (float)(node.Size / 2));
 			if(s <= 0) {
 				bool isEdge = IsEdge(node);
 				if(isEdge) {
@@ -83,15 +61,15 @@ public class NaiveSVO : SVO {
 		else {
 			bool childExists = false;
 			int numLeaves = 0;
-			node.children = new Node[8];
+			node.Children = new Node[8];
 
 			for(int i = 0; i < 8; i++) {
-				double half = node.size/2d;
-				Node child = new Node(node.position + Constants.vfoffsets[i] * (float)(half), half, level, level + 1 == maxLevel);
-				node.children[i] = BuildTreeAux(child, level + 1);
-				if(node.children[i] != null) {
+				double half = node.Size/2d;
+				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level, level + 1 == maxLevel);
+				node.Children[i] = BuildTreeAux(child, level + 1);
+				if(node.Children[i] != null) {
 					childExists = true;
-					if(node.children[i].leaf) {
+					if(node.Children[i].Leaf) {
 						numLeaves++;
 					}
 				}
@@ -107,7 +85,7 @@ public class NaiveSVO : SVO {
 	// Given that node resides inside the surface, detects if it's an edge voxel (has air next to it)
 	public bool IsEdge(Node node) {
 		foreach(Vector3 direction in Constants.vdirections) {
-			Vector3 pos = node.GetCenter() + direction * (float)(node.size);
+			Vector3 pos = node.GetCenter() + direction * (float)(node.Size);
 			float s = sample(pos.x, pos.y, pos.z);
 			if(s > 0) {
 				return true;
@@ -121,14 +99,9 @@ public class NaiveSVO : SVO {
 		Returns a list of nodes that intersect a ray (in sorted order)
 	 */
 
-	public Vector4[] Trace(UnityEngine.Ray ray) {
+	public SVONode[] Trace(UnityEngine.Ray ray) {
 		List<Node> intersectedNodes = TraceAux(ray);
-		Vector4[] intersectedNodesArray = new Vector4[intersectedNodes.Count];
-		for(int i = 0; i < intersectedNodes.Count; i++) {
-			Node n = intersectedNodes[i];
-			intersectedNodesArray[i] = new Vector4(n.position.x, n.position.y, n.position.z, (float)n.size);
-		}
-		return intersectedNodesArray;
+		return intersectedNodes.ToArray();
 	}
 
 	private List<Node> TraceAux(UnityEngine.Ray ray) {
@@ -138,20 +111,20 @@ public class NaiveSVO : SVO {
 	}
 
 	private int FirstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
-		sbyte answer = 0;	// initialize to 00000000
-		// select the entry plane and set bits
+		sbyte answer = 0;
+
 		if(tx0 > ty0){
-			if(tx0 > tz0){ // PLANE YZ
-				if(tym < tx0) answer|=2;	// set bit at position 1
-				if(tzm < tx0) answer|=1;	// set bit at position 0
-				if(txm < ty0) answer|=4;	// set bit at position 2
-				if(tzm < ty0) answer|=1;	// set bit at position 0
+			if(tx0 > tz0){
+				if(tym < tx0) answer|=2;
+				if(tzm < tx0) answer|=1;
+				if(txm < ty0) answer|=4;
+				if(tzm < ty0) answer|=1;
 				return (int) answer;
 			}
 		}
-		// PLANE XY
-		if(txm < tz0) answer|=4;	// set bit at position 2
-		if(tym < tz0) answer|=2;	// set bit at position 1
+
+		if(txm < tz0) answer|=4;
+		if(tym < tz0) answer|=2;
 		return (int) answer;
 	}
  	private int NewNode(double txm, int x, double tym, int y, double tzm, int z){
@@ -166,89 +139,84 @@ public class NaiveSVO : SVO {
  	private void ProcSubtree (Vector3 rayOrigin, Vector3 rayDirection, double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, Node node, List<Node> intersectedNodes, sbyte a){
 		float txm, tym, tzm;
 		int currNode;
- 		if(tx1 < 0 || ty1 < 0 || tz1 < 0 || node == null) return; 	
-		if(node.leaf){
-			intersectedNodes.Add(node);
-			Debug.Log("Reached leaf node " + node);
-			if(node.ToString().Equals("[Node, Position (0.0, -0.3, -1.0), Size: 0.25, Leaf: True, Level: 3]")) {
-				Debug.Log("Reached error node.");
-			}
+
+		if(node == null || !(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) || Mathd.Min(tx1, ty1, tz1) < 0) { 
 			return;
 		}
-		else{ 
-			//cout << "Reached node " << node->debug_ID << endl;
-		} 	
-		txm = (float)(0.5*(tx0 + tx1)); 	
+		if(node.Leaf){
+			intersectedNodes.Add(node);
+			return;
+		}
+
+ 		txm = (float)(0.5*(tx0 + tx1)); 	
 		tym = (float)(0.5*(ty0 + ty1)); 	
 		tzm = (float)(0.5*(tz0 + tz1)); 	
 		currNode = FirstNode(tx0,ty0,tz0,txm,tym,tzm); 	
 		do{ 		
 			switch (currNode) { 		
 			case 0: {  			
-				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,txm,tym,tzm,node.children[a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,txm,tym,tzm,node.Children[a], intersectedNodes, a);
 				currNode = NewNode(txm,4,tym,2,tzm,1);
 				break;}
 			case 1: {
-				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tzm,txm,tym,tz1,node.children[1^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tzm,txm,tym,tz1,node.Children[1^a], intersectedNodes, a);
 				currNode = NewNode(txm,5,tym,3,tz1,8);
 				break;}
 			case 2: {
-				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tz0,txm,ty1,tzm,node.children[2^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tz0,txm,ty1,tzm,node.Children[2^a], intersectedNodes, a);
 				currNode = NewNode(txm,6,ty1,8,tzm,3);
 				break;}
 			case 3: {
-				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tzm,txm,ty1,tz1,node.children[3^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tzm,txm,ty1,tz1,node.Children[3^a], intersectedNodes, a);
 				currNode = NewNode(txm,7,ty1,8,tz1,8);
 				break;}
 			case 4: {
-				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tz0,tx1,tym,tzm,node.children[4^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tz0,tx1,tym,tzm,node.Children[4^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,tym,6,tzm,5);
 				break;}
 			case 5: {
-				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.children[5^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.Children[5^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,tym,7,tz1,8);
 				break;}
 			case 6: {
-				ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.children[6^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.Children[6^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,ty1,8,tzm,7);
 				break;}
 			case 7: {
-				ProcSubtree(rayOrigin, rayDirection, txm,tym,tzm,tx1,ty1,tz1,node.children[7^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,tym,tzm,tx1,ty1,tz1,node.Children[7^a], intersectedNodes, a);
 				currNode = 8;
 				break;}
 			}
 		} while (currNode < 8);
 	}
  	public void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
-		Vector3 nodeMax = node.position + Vector3.one * (float)node.size;
+		Vector3 nodeMax = node.Position + Vector3.one * (float)node.Size;
 		sbyte a = 0;
- 		if(rayDirection[0] < 0) {
-			rayOrigin[0] = - rayOrigin[0];
-			rayDirection[0] = - rayDirection[0];
-			a |= 4 ; //bitwise OR (latest bits are XYZ)
+ 		if(rayDirection.x < 0) {
+			rayOrigin.x = -rayOrigin.x;
+			rayDirection.x = -rayDirection.x;
+			a |= 4;
 		}
-		if(rayDirection[1] < 0){ 		
-			rayOrigin[1] = - rayOrigin[1];
-			rayDirection[1] = - rayDirection[1];
-			a |= 2 ;
+		if(rayDirection.y < 0){ 		
+			rayOrigin.y = -rayOrigin.y;
+			rayDirection.y = -rayDirection.y;
+			a |= 2;
 		}
-		if(rayDirection[2] < 0){ 		
-			rayOrigin[2] =  - rayOrigin[2];
-			rayDirection[2] = - rayDirection[2];
-			a |= 1 ;
+		if(rayDirection.z < 0){ 		
+			rayOrigin.z =  -rayOrigin.z;
+			rayDirection.z = -rayDirection.z;
+			a |= 1;
 		}
 
-		reflectedRay = new Ray(rayOrigin, rayDirection);
-
- 		double divx = 1 / rayDirection[0]; // IEEE stability fix
-		double divy = 1 / rayDirection[1];
-		double divz = 1 / rayDirection[2];
- 		double tx0 = (node.position[0] - rayOrigin[0]) * divx;
-		double tx1 = (nodeMax[0] - rayOrigin[0]) * divx;
-		double ty0 = (node.position[1] - rayOrigin[1]) * divy;
-		double ty1 = (nodeMax[1] - rayOrigin[1]) * divy;
-		double tz0 = (node.position[2] - rayOrigin[2]) * divz;
-		double tz1 = (nodeMax[2] - rayOrigin[2]) * divz;
+ 		double divx = 1 / rayDirection.x; // IEEE stability fix
+		double divy = 1 / rayDirection.y;
+		double divz = 1 / rayDirection.z;
+ 		double tx0 = (node.Position.x - rayOrigin.x) * divx;
+		double tx1 = (nodeMax.x - rayOrigin.x) * divx;
+		double ty0 = (node.Position.y - rayOrigin.y) * divy;
+		double ty1 = (nodeMax.y - rayOrigin.y) * divy;
+		double tz0 = (node.Position.z - rayOrigin.z) * divz;
+		double tz1 = (nodeMax.z - rayOrigin.z) * divz;
 
  		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 		
 			ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,tx1,ty1,tz1,node,intersectedNodes, a);
@@ -268,13 +236,13 @@ public class NaiveSVO : SVO {
 	public void GenerateDebugBoxesAux(Node node, List<ColoredBox> debugBoxes, bool onlyShowLeaves) {
 		if(node == null) { return; }
 		
-		if(!onlyShowLeaves || node.leaf) {
-			debugBoxes.Add(node.GetDebugBox());
+		if(!onlyShowLeaves || node.Leaf) {
+			debugBoxes.Add(node.GetColoredBox());
 		}
 
-		if(node.children != null) {
+		if(node.Children != null) {
 			for(int i = 0; i < 8; i++) {
-				GenerateDebugBoxesAux(node.children[i], debugBoxes, onlyShowLeaves);
+				GenerateDebugBoxesAux(node.Children[i], debugBoxes, onlyShowLeaves);
 			}
 		}
 	}
@@ -283,8 +251,8 @@ public class NaiveSVO : SVO {
 		List<Node> nodes = TraceAux(ray);
 		List<ColoredBox> debugBoxes = new List<ColoredBox>();
 		foreach(Node node in nodes) {
-			if(!onlyShowLeaves || node.leaf) {
-				ColoredBox box = node.GetDebugBox();
+			if(!onlyShowLeaves || node.Leaf) {
+				ColoredBox box = node.GetColoredBox();
 				box.Color.a = 0.9f;
 				debugBoxes.Add(box);
 			}
@@ -293,11 +261,6 @@ public class NaiveSVO : SVO {
 	}
 
 	public void DrawGizmos(float scale) {
-	}
-
-	private void DrawReflectedRay(float scale) {
-		Gizmos.color = Color.green;
-		Gizmos.DrawLine(reflectedRay.origin * scale, reflectedRay.direction * 10000);
 	}
 }
 }

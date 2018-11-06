@@ -48,7 +48,15 @@ public class SVODriver : MonoBehaviour {
 
 	void UpdateRaycast() {
 		currentRay = new Ray(lastRayStartPosition / scale, lastRayEndPosition - lastRayStartPosition);
+
+		Debug.Log("Current ray: " + currentRay.ToString("F4"));
 		intersectedNodesBoxes = svo.GenerateDebugBoxesAlongRay(currentRay, onlyShowLeaves);
+		string s = "";
+		foreach(ColoredBox c in intersectedNodesBoxes) {
+			s += c;
+		}
+
+		Debug.Log("Intersected boxes: " + s);
 	}
 
     void OnDrawGizmos() {

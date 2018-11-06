@@ -14,6 +14,10 @@ public struct ColoredBox {
 	public Color Color;
 	public Vector3 Center;
 	public Vector3 Size;
+
+	public override string ToString() {
+		return "[ColoredBox, Center: " + Center.ToString("F4") + ", Size: " + Size.ToString("F4") + "]";
+	}
 }
 
 public struct ChildDescriptorInfo {
@@ -23,17 +27,27 @@ public struct ChildDescriptorInfo {
 }
 
 // uncompressed, naive way to store nodes
-public class Node {
-	public Node Parent;
-	public Node[] Children;
+public class SVONode {
+	public double Size;
+	public bool Leaf;
+	public int Level;
+	public Vector3 Position;
 
-	public Vector3 Min;
-	public float Size;
-	public bool IsLeaf;
-	public int Depth;
-	public bool ContainsSurface;
-	public bool CompletelyFilled;
-	public Color Color;
+	public ColoredBox GetColoredBox() {
+		ColoredBox box = new ColoredBox();
+		box.Center = GetCenter();
+		box.Color = UtilFuncs.SinColor(Level * 2f);
+		box.Color.a = 0.2f;
+		box.Size = Vector3.one * (float)Size;
+		return box;		}
+
+	public Vector3 GetCenter() {
+		return Position + Vector3.one * ((float)Size / 2);
+	}
+
+	public override string ToString() {
+		return "[Node, Position " + Position.ToString("F4") + ", Size: " + Size + ", Leaf: " + Leaf + ", Level: " + Level + "]";
+	}
 }
 
 // expanded form of child descriptor
