@@ -1,9 +1,13 @@
 using UnityEngine;
+using System.Collections.Generic;
+using System.Linq;
 
+/*
+	Class for testing/probing/visualizing octrees
+ */
 namespace RT {
 public class SVODriver : MonoBehaviour {
 	SVO svo;
-	ColoredBox[] debugBoxes;
 	public SampleFunctions.Type sampleType = SampleFunctions.Type.FlatGround;
 
 	[Range(1, 8)]
@@ -18,9 +22,13 @@ public class SVODriver : MonoBehaviour {
 	private Vector3 lastRayStartPosition = Vector3.zero;
 	private Vector3 lastRayEndPosition = Vector3.zero;
 
+	/*
+		Debug Fields
+	 */
 	private Ray currentRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
 	private Ray reflectedRay = new Ray(new Vector3(0, 0, 0), new Vector3(16, 0, 0));
-	private ColoredBox[] intersectedNodesBoxes;
+	private IEnumerable<ColoredBox> debugBoxes;
+	private IEnumerable<ColoredBox> intersectedNodesBoxes;
 
 	public void Start() {
 		UpdateSVO();
@@ -43,20 +51,18 @@ public class SVODriver : MonoBehaviour {
 
 	void UpdateSVO() {
 		svo = new NaiveSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
-		debugBoxes = svo.GenerateDebugBoxes(onlyShowLeaves);
+		debugBoxes = svo.GetAllNodes()
+			.Where(node => node.Leaf || onlyShowLeaves)
+			.Select(node => node.GetColoredBox());
 	}
 
 	void UpdateRaycast() {
 		currentRay = new Ray(lastRayStartPosition / scale, lastRayEndPosition - lastRayStartPosition);
-
 		Debug.Log("Current ray: " + currentRay.ToString("F4"));
-		intersectedNodesBoxes = svo.GenerateDebugBoxesAlongRay(currentRay, onlyShowLeaves);
-		string s = "";
-		foreach(ColoredBox c in intersectedNodesBoxes) {
-			s += c;
-		}
 
-		Debug.Log("Intersected boxes: " + s);
+		intersectedNodesBoxes = svo.Trace(currentRay)
+			.Where(node => node.Leaf || onlyShowLeaves)
+			.Select(node => node.GetColoredBox());
 	}
 
     void OnDrawGizmos() {

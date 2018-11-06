@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace RT {
 public class NaiveSVO : SVO {
@@ -98,16 +99,10 @@ public class NaiveSVO : SVO {
 		Ray Tracing methods
 		Returns a list of nodes that intersect a ray (in sorted order)
 	 */
-
-	public SVONode[] Trace(UnityEngine.Ray ray) {
-		List<Node> intersectedNodes = TraceAux(ray);
-		return intersectedNodes.ToArray();
-	}
-
-	private List<Node> TraceAux(UnityEngine.Ray ray) {
+	public List<SVONode> Trace(UnityEngine.Ray ray) {
 		List<Node> intersectedNodes = new List<Node>();
 		RayStep(root, ray.origin, ray.direction, intersectedNodes);
-		return intersectedNodes;
+		return intersectedNodes.ConvertAll(node => (SVONode)node).ToList();
 	}
 
 	private int FirstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
@@ -227,39 +222,24 @@ public class NaiveSVO : SVO {
 		Debug Methods
 	 */
 
-	public ColoredBox[] GenerateDebugBoxes(bool onlyShowLeaves) {
-		List<ColoredBox> debugBoxes = new List<ColoredBox>();
-		GenerateDebugBoxesAux(root, debugBoxes, onlyShowLeaves);
-		return debugBoxes.ToArray();
+	public List<SVONode> GetAllNodes() {
+		List<SVONode> nodes = new List<SVONode>();
+		GetAllNodesAux(root, nodes);
+		return nodes;
 	}
 
-	public void GenerateDebugBoxesAux(Node node, List<ColoredBox> debugBoxes, bool onlyShowLeaves) {
+	public void GetAllNodesAux(Node node, List<SVONode> nodes) {
 		if(node == null) { return; }
 		
-		if(!onlyShowLeaves || node.Leaf) {
-			debugBoxes.Add(node.GetColoredBox());
-		}
+		nodes.Add(node);
 
 		if(node.Children != null) {
 			for(int i = 0; i < 8; i++) {
-				GenerateDebugBoxesAux(node.Children[i], debugBoxes, onlyShowLeaves);
+				GetAllNodesAux(node.Children[i], nodes);
 			}
 		}
 	}
-
-	public ColoredBox[] GenerateDebugBoxesAlongRay(Ray ray, bool onlyShowLeaves) {
-		List<Node> nodes = TraceAux(ray);
-		List<ColoredBox> debugBoxes = new List<ColoredBox>();
-		foreach(Node node in nodes) {
-			if(!onlyShowLeaves || node.Leaf) {
-				ColoredBox box = node.GetColoredBox();
-				box.Color.a = 0.9f;
-				debugBoxes.Add(box);
-			}
-		}
-		return debugBoxes.ToArray();
-	}
-
+	
 	public void DrawGizmos(float scale) {
 	}
 }
