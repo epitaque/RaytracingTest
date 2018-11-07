@@ -68,21 +68,19 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
     private List<uint> CompressSVO(Node root) {
         List<uint> compressedNodes = new List<uint>();
-        CompressSVOAux(root, compressedNodes);
+		compressedNodes.Add(0);
+        CompressSVOAux(root, 0, compressedNodes);
         return compressedNodes;
     } 
 
-    private uint CompressSVOAux(Node node, List<uint> compressedNodes) {
-        if(node == null || node.Leaf) { return 0; }
-
-		uint thisIndex = (uint)compressedNodes.Count;
-        compressedNodes.Add(0);
+    private void CompressSVOAux(Node node, int nodeIndex, List<uint> compressedNodes) {
+        if(node == null || node.Leaf) { return; }
 
 		uint childPointer = 0;
         uint validMask = 0;
         uint leafMask = 0;
 
-        for(int childNum = 0; childNum < 8; childNum++) {
+        for(int childNum = 0; childNum < 8; childNum++) { 
             uint bit = (uint)1 << childNum;
             if(node.Children[childNum] != null) {
                 validMask |= bit;
@@ -90,16 +88,23 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
                     leafMask |= bit;
                 }
 				else {
-            		uint childIndex = CompressSVOAux(node.Children[childNum], compressedNodes);
-					if(childPointer == 0) childPointer = childIndex;
+					if(childPointer == 0) {
+						childPointer = (uint)compressedNodes.Count;
+					}
+					compressedNodes.Add(0);
 				}
             }
         }
 
-        uint result = childPointer | (validMask << 16) | (leafMask << 24);
-		compressedNodes[(int)thisIndex] = result;
+		int childPointerClone = (int)childPointer;
+		for(int childNum = 0; childNum < 8; childNum++) {
+			if(node.Children[childNum] != null && !node.Children[childNum].Leaf) {
+				CompressSVOAux(node.Children[childNum], childPointerClone++, compressedNodes);
+			}
+		}
 
-		return thisIndex;
+        uint result = childPointer | (validMask << 16) | (leafMask << 24);
+		compressedNodes[nodeIndex] = result;
     }
 
 	static NaiveCreator() {
@@ -110,11 +115,11 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		NaiveCreator creator = new NaiveCreator();
 		List<uint> nodes = new List<uint>();
 		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
-		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.FlatGround], 3);
+		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 5);
 		nodes = creator.CompressSVO(root);
 		string output = "SVO Compaction Test\n";
-		output += "Hierarchy: " + root.StringifyHierarchy() + "\n\n";
-		output += "Compressed: " + string.Join(", ", nodes.ConvertAll(code => new ChildDescriptor(code)));
+		//output += "Hierarchy:\n" + root.StringifyHierarchy() + "\n\n";
+		output += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code)));
 		Debug.Log(output);
 	}
 }

@@ -14,7 +14,7 @@ public class Node : SVONode {
 
 	public string StringifyHierarchy() {
 		string result = "";
-		result += ToString();
+		result += ToString() + "\n";
 		if(Children != null) {
 			for(int i = 0; i < 8; i++) {
 				Node n = Children[i];
@@ -47,16 +47,6 @@ public class ChildDescriptor {
 
 	public override string ToString() {
 		return "[ChildDescriptor childPointer: " + childPointer + ", validMask: " + Convert.ToString(validMask, 2).PadLeft(8, '0') + ", leafMask: " + Convert.ToString(leafMask, 2).PadLeft(8, '0') + "]";
-	}
-
-	static ChildDescriptor() {
-		string result = "Child Descriptor Test";
-		uint childPointer_ = 5, validMask_ = 1, leafMask_ = 1;
-		result += "Child Pointer: " + childPointer_ + ", Valid Mask: " + validMask_ + ", Leaf Mask: " + leafMask_ + "\n";
-		uint code = ToCode(childPointer_, validMask_, leafMask_);
-		result += "Code: " + code + " or " + Convert.ToString(code, 2) + "\n";
-		result += "Converted back: " + new ChildDescriptor(code).ToString() + "\n"; 
-		Debug.Log(result); 
 	}
 }
 }
