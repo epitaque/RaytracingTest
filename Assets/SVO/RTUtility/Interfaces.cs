@@ -4,7 +4,7 @@ using System.Collections;
 
 namespace RT {
 	public interface SVO {
-		void Create(UtilFuncs.Sampler sampler, int depth);
+		void Create(UtilFuncs.Sampler sample, int maxDepth);
 		List<SVONode> Trace(UnityEngine.Ray ray);
 		List<SVONode> GetAllNodes();
 

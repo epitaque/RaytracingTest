@@ -1,107 +1,51 @@
-using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using System;
+using UnityEngine;
+using RT.CS;
 
-namespace RT {
-public class NaiveSVO : SVO {
-	private int maxLevel;
-	private UtilFuncs.Sampler sample;
-	private Node root;
-
-	/*
-		Debug Fields
-	 */
-	private Ray reflectedRay;
-
-	public class Node : SVONode {
-		public Node(Vector3 position, double size, int level, bool leaf) {
-			Position = position;
-			Size = size;
-			Level = level;
-			Leaf = leaf;
-		}
-
-		public Node[] Children;
-	}
-
-	public NaiveSVO(UtilFuncs.Sampler sample, int maxLevel) {
-		Create(sample, maxLevel);
-	}
-
-	public void Create(UtilFuncs.Sampler sample, int maxLevel) {
-		this.maxLevel = maxLevel;
-		this.sample = sample;
-		BuildTree();
-	}
-
-	public void BuildTree() {
-		root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
-		BuildTreeAux(root, 1);
+namespace RT.CS {
+public class NaiveTracer : CompactSVO.CompactSVOTracer {
+	private Node ExpandSVO(List<uint> svo) {
+		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
+		ExpandSVOAux(root, 0, 1, svo);
+		return root;
 	}
 
 	/*
-		Tree building methods
-
-		Constructs subtree from node.
-		Will return null if node does not contain surface.
-		Will return node if node contains surface.
+	    child pointer | valid mask | leaf mask
+            16			   8			8
 	 */
-	public Node BuildTreeAux(Node node, int level) {
-		// Node is leaf. Determine if within surface. If so, return node.
-		if(node.Leaf) {
-			float s = sample(node.Position.x + (float)(node.Size / 2), node.Position.y + (float)(node.Size / 2), node.Position.z + (float)(node.Size / 2));
-			if(s <= 0) {
-				bool isEdge = IsEdge(node);
-				if(isEdge) {
-					return node;
-				}
-			}
-		}
+	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<uint> svo) {
+		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]);
 
-		// Node is not leaf. Construct 8 children. If any of them intersect surface, return node.
-		else {
-			bool childExists = false;
-			int numLeaves = 0;
-			node.Children = new Node[8];
+		node.Children = new Node[8];
+		int pointer = descriptor.childPointer;
 
-			for(int i = 0; i < 8; i++) {
+		for(int childNum = 0; childNum < 8; childNum++) {
+			if(descriptor.Valid(childNum)) {
 				double half = node.Size/2d;
-				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level, level + 1 == maxLevel);
-				node.Children[i] = BuildTreeAux(child, level + 1);
-				if(node.Children[i] != null) {
-					childExists = true;
-					if(node.Children[i].Leaf) {
-						numLeaves++;
-					}
+				bool leaf = descriptor.Leaf(childNum);
+
+				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
+				node.Children[childNum] = child;
+
+				if(!leaf) {
+					ExpandSVOAux(node, pointer, level + 1, svo);
 				}
-			}
 
-			if(childExists) {
-				return node;
+				pointer++;
 			}
 		}
-		return null;
-	}
-
-	// Given that node resides inside the surface, detects if it's an edge voxel (has air next to it)
-	public bool IsEdge(Node node) {
-		foreach(Vector3 direction in Constants.vdirections) {
-			Vector3 pos = node.GetCenter() + direction * (float)(node.Size);
-			float s = sample(pos.x, pos.y, pos.z);
-			if(s > 0) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/*
 		Ray Tracing methods
 		Returns a list of nodes that intersect a ray (in sorted order)
 	 */
-	public List<SVONode> Trace(UnityEngine.Ray ray) {
+	public List<SVONode> Trace(UnityEngine.Ray ray, List<uint> svo) {
 		List<Node> intersectedNodes = new List<Node>();
-		RayStep(root, ray.origin, ray.direction, intersectedNodes);
+		RayStep(ExpandSVO(svo), ray.origin, ray.direction, intersectedNodes);
 		return intersectedNodes.ConvertAll(node => (SVONode)node).ToList();
 	}
 
@@ -184,7 +128,7 @@ public class NaiveSVO : SVO {
 			}
 		} while (currNode < 8);
 	}
- 	public void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
+ 	private void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
 		Vector3 nodeMax = node.Position + Vector3.one * (float)node.Size;
 		sbyte a = 0;
  		if(rayDirection.x < 0) {
@@ -222,13 +166,13 @@ public class NaiveSVO : SVO {
 		Debug Methods
 	 */
 
-	public List<SVONode> GetAllNodes() {
+	public List<SVONode> GetAllNodes(List<uint> svo) {
 		List<SVONode> nodes = new List<SVONode>();
-		GetAllNodesAux(root, nodes);
+		GetAllNodesAux(ExpandSVO(svo), nodes);
 		return nodes;
 	}
 
-	public void GetAllNodesAux(Node node, List<SVONode> nodes) {
+	private void GetAllNodesAux(Node node, List<SVONode> nodes) {
 		if(node == null) { return; }
 		
 		nodes.Add(node);
@@ -242,5 +186,7 @@ public class NaiveSVO : SVO {
 	
 	public void DrawGizmos(float scale) {
 	}
+
+
 }
 }

@@ -157,10 +157,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36ab1f2ef79aefa469e3ecb62095cc37, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sampleType: 1
-  maxLevel: 5
+  sampleType: 0
+  maxLevel: 4
   scale: 16
-  onlyShowLeaves: 1
+  lowerNodeDrawBound: 4
+  upperNodeDrawBound: 8
   rayStart: {fileID: 1784773525}
   rayEnd: {fileID: 1444369860}
 --- !u!1 &1085055189

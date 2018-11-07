@@ -15,8 +15,13 @@ public class SVODriver : MonoBehaviour {
 
 	[Range(1, 256)]
 	public float scale = 16;
-	public bool onlyShowLeaves = false;
+
+	[Range(1, 8)]
+	public int lowerNodeDrawBound = 1;
+	[Range(1, 8)]
+	public int upperNodeDrawBound = 8;
 	
+
 	public GameObject rayStart;
 	public GameObject rayEnd;
 	private Vector3 lastRayStartPosition = Vector3.zero;
@@ -50,18 +55,17 @@ public class SVODriver : MonoBehaviour {
 	}
 
 	void UpdateSVO() {
-		svo = new NaiveSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
+		svo = new CompactSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
 		debugBoxes = svo.GetAllNodes()
-			.Where(node => node.Leaf || onlyShowLeaves)
+			.Where(node => node.Level <= upperNodeDrawBound && node.Level >= lowerNodeDrawBound)
 			.Select(node => node.GetColoredBox());
 	}
 
 	void UpdateRaycast() {
 		currentRay = new Ray(lastRayStartPosition / scale, lastRayEndPosition - lastRayStartPosition);
-		Debug.Log("Current ray: " + currentRay.ToString("F4"));
 
 		intersectedNodesBoxes = svo.Trace(currentRay)
-			.Where(node => node.Leaf || onlyShowLeaves)
+			.Where(node => node.Level <= upperNodeDrawBound && node.Level >= lowerNodeDrawBound)
 			.Select(node => node.GetColoredBox());
 	}
 

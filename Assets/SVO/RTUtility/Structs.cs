@@ -37,7 +37,7 @@ public class SVONode {
 		ColoredBox box = new ColoredBox();
 		box.Center = GetCenter();
 		box.Color = UtilFuncs.SinColor(Level * 2f);
-		box.Color.a = 0.2f;
+		box.Color.a = 0.07f;
 		box.Size = Vector3.one * (float)Size;
 		return box;		}
 
