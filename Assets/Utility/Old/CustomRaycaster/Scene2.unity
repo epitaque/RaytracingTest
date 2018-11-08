@@ -160,8 +160,9 @@ MonoBehaviour:
   sampleType: 0
   maxLevel: 4
   scale: 16
-  lowerNodeDrawBound: 4
+  lowerNodeDrawBound: 1
   upperNodeDrawBound: 8
+  svoType: 1
   rayStart: {fileID: 1784773525}
   rayEnd: {fileID: 1444369860}
 --- !u!1 &1085055189

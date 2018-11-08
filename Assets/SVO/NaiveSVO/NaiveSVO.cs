@@ -63,7 +63,7 @@ public class NaiveSVO : SVO {
 			node.Children = new Node[8];
 
 			for(int i = 0; i < 8; i++) {
-				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level, level + 1 == maxLevel);
+				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level + 1, level + 1 == maxLevel);
 				node.Children[i] = BuildTreeAux(child, level + 1);
 				if(node.Children[i] != null) {
 					childExists = true;

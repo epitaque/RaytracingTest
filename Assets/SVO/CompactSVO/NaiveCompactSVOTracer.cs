@@ -16,25 +16,23 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 	    child pointer | valid mask | leaf mask
             16			   8			8
 	 */
-	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<uint> svo) {
-		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]);
-
-		node.Children = new Node[8];
+	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<uint> svo) { 
+		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
+ 
+		node.Children = new Node[8]; 
 		int pointer = descriptor.childPointer;
+		double half = node.Size/2d;
 
-		for(int childNum = 0; childNum < 8; childNum++) {
+		for(int childNum = 0; childNum < 8; childNum++) { 
 			if(descriptor.Valid(childNum)) {
-				double half = node.Size/2d;
 				bool leaf = descriptor.Leaf(childNum);
 
 				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
 				node.Children[childNum] = child;
 
 				if(!leaf) {
-					ExpandSVOAux(node, pointer, level + 1, svo);
+					ExpandSVOAux(node.Children[childNum], pointer++, level + 1, svo);
 				}
-
-				pointer++;
 			}
 		}
 	}
@@ -168,6 +166,7 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 
 	public List<SVONode> GetAllNodes(List<uint> svo) {
 		List<SVONode> nodes = new List<SVONode>();
+		testRoot = ExpandSVO(svo);
 		GetAllNodesAux(ExpandSVO(svo), nodes);
 		return nodes;
 	}
@@ -187,6 +186,24 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 	public void DrawGizmos(float scale) {
 	}
 
+	// Test the tracing functionality
+
+	public static Node testRoot;
+	static NaiveTracer() {
+		/*Debug.Log("Attempting NaiveTracer test");
+		NaiveCreator c = new NaiveCreator();
+		NaiveTracer t = new NaiveTracer();
+		List<uint> nodes = new List<uint>();
+		nodes = c.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
+
+		testRoot = new Node(new Vector3(-1, -1, -1), 2, 1, false);
+		t.ExpandSVOAux(testRoot, 0, 1, nodes);
+
+		string result = "NaiveTracer Expand SVO test: \n";
+		result += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code))) + "\n\n";
+		result += "Uncompressed: \n" + testRoot.StringifyHierarchy();
+		Debug.Log(result);*/
+	}
 
 }
 }

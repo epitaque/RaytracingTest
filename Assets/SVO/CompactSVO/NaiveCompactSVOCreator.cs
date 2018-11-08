@@ -6,10 +6,9 @@ using UnityEngine;
 namespace RT.CS {
 public class NaiveCreator : CompactSVO.CompactSVOCreator {
 	public List<uint> Create(UtilFuncs.Sampler sample, int maxLevel) {
-		List<uint> nodes = new List<uint>();
 		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
 		BuildTree(root, 1, sample, maxLevel);
-
+		List<uint> nodes = CompressSVO(root);
 		return nodes;
 	}
 	/*
@@ -112,15 +111,15 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 	}
 
 	public static void TestSVOCompaction() {
-		NaiveCreator creator = new NaiveCreator();
+		/*NaiveCreator creator = new NaiveCreator();
 		List<uint> nodes = new List<uint>();
 		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
-		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 5);
+		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
 		nodes = creator.CompressSVO(root);
-		string output = "SVO Compaction Test\n";
-		//output += "Hierarchy:\n" + root.StringifyHierarchy() + "\n\n";
+		string output = "NaiveCreator SVO Compaction Test\n";
+		output += "Original Hierarchy:\n" + root.StringifyHierarchy() + "\n\n";
 		output += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code)));
-		Debug.Log(output);
+		Debug.Log(output); */
 	}
 }
 }

@@ -21,6 +21,11 @@ public class SVODriver : MonoBehaviour {
 	[Range(1, 8)]
 	public int upperNodeDrawBound = 8;
 	
+	public enum SVOType {
+		NaiveSVO,
+		CompactSVO
+	}
+	public SVOType svoType = SVOType.CompactSVO;
 
 	public GameObject rayStart;
 	public GameObject rayEnd;
@@ -55,7 +60,11 @@ public class SVODriver : MonoBehaviour {
 	}
 
 	void UpdateSVO() {
-		svo = new CompactSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
+		if(svoType == SVOType.CompactSVO) {
+			svo = new CompactSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
+		} else if(svoType == SVOType.NaiveSVO) {
+			svo = new NaiveSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
+		}
 		debugBoxes = svo.GetAllNodes()
 			.Where(node => node.Level <= upperNodeDrawBound && node.Level >= lowerNodeDrawBound)
 			.Select(node => node.GetColoredBox());

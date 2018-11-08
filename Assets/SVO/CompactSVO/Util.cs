@@ -38,6 +38,12 @@ public class ChildDescriptor {
 		this.leafMask = (byte)(code >> 24);
 	}
 
+	public ChildDescriptor(ushort childPointer, byte validMask, byte leafMask) {
+		this.childPointer = childPointer;
+		this.validMask = validMask;
+		this.leafMask = leafMask;
+	}
+
 	public bool Valid(int childNum) { return (validMask & (1 << childNum)) != 0; }
 	public bool Leaf(int childNum) { return (leafMask & (1 << childNum)) != 0; }
 
