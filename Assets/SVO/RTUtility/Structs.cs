@@ -33,6 +33,14 @@ public class SVONode {
 	public int Level;
 	public Vector3 Position;
 
+	public SVONode() {}
+	public SVONode(Vector3 position, double size, bool leaf, int level) {
+		Size = size;
+		Leaf = leaf;
+		Level = level;
+		Position = position;
+	}
+
 	public ColoredBox GetColoredBox() {
 		ColoredBox box = new ColoredBox();
 		box.Center = GetCenter();
@@ -43,6 +51,11 @@ public class SVONode {
 
 	public Vector3 GetCenter() {
 		return Position + Vector3.one * ((float)Size / 2);
+	}
+
+	public SVONode GetChild(int childNum, bool leaf) {
+		Debug.Assert(!Leaf);
+		return new SVONode(Position + Constants.vfoffsets[childNum] * (float)Size/2, (float)Size/2, leaf, Level + 1);
 	}
 
 	public override string ToString() {

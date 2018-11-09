@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 namespace RT.CS {
-public class DescriptorTracer : CompactSVO.CompactSVOTracer {
+public class RecursiveDescriptorTracer : CompactSVO.CompactSVOTracer {
 	public List<SVONode> Trace(Ray ray, List<uint> svo) {
+		List<SVONode> nodes = new List<SVONode>();
 		return null;
 	}
 
@@ -33,11 +34,11 @@ public class DescriptorTracer : CompactSVO.CompactSVOTracer {
 		}
 		return z; // XY plane;
 	}
- 	private void ProcSubtree (Vector3 rayOrigin, Vector3 rayDirection, double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, Node node, List<Node> intersectedNodes, sbyte a){
+ 	private void ProcSubtree (Vector3 rayOrigin, Vector3 rayDirection, double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, uint childDescriptor, SVONode node, List<SVONode> intersectedNodes, sbyte a){
 		float txm, tym, tzm;
 		int currNode;
 
-		if(node == null || !(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) || Mathd.Min(tx1, ty1, tz1) < 0) { 
+		if(!(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) || Mathd.Min(tx1, ty1, tz1) < 0) { 
 			return;
 		}
 		if(node.Leaf){
@@ -86,8 +87,8 @@ public class DescriptorTracer : CompactSVO.CompactSVOTracer {
 			}
 		} while (currNode < 8);
 	}
- 	private void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
-		Vector3 nodeMax = node.Position + Vector3.one * (float)node.Size;
+ 	private void RayStep(uint node, Vector3 nodePosition, float nodeSize, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
+		Vector3 nodeMax = nodePosition + Vector3.one * nodeSize;
 		sbyte a = 0;
  		if(rayDirection.x < 0) {
 			rayOrigin.x = -rayOrigin.x;
@@ -108,11 +109,11 @@ public class DescriptorTracer : CompactSVO.CompactSVOTracer {
  		double divx = 1 / rayDirection.x; // IEEE stability fix
 		double divy = 1 / rayDirection.y;
 		double divz = 1 / rayDirection.z;
- 		double tx0 = (node.Position.x - rayOrigin.x) * divx;
+ 		double tx0 = (nodePosition.x - rayOrigin.x) * divx;
 		double tx1 = (nodeMax.x - rayOrigin.x) * divx;
-		double ty0 = (node.Position.y - rayOrigin.y) * divy;
+		double ty0 = (nodePosition.y - rayOrigin.y) * divy;
 		double ty1 = (nodeMax.y - rayOrigin.y) * divy;
-		double tz0 = (node.Position.z - rayOrigin.z) * divz;
+		double tz0 = (nodePosition.z - rayOrigin.z) * divz;
 		double tz1 = (nodeMax.z - rayOrigin.z) * divz;
 
  		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 		
