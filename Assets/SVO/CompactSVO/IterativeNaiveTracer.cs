@@ -50,20 +50,27 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	private int FirstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
 		sbyte answer = 0;
 
-		if(tx0 > ty0){
-			if(tx0 > tz0){
-				if(tym < tx0) answer|=2;
-				if(tzm < tx0) answer|=1;
-				if(txm < ty0) answer|=4;
-				if(tzm < ty0) answer|=1;
-				return (int) answer;
+		if(tx0 > ty0) {
+			if(tz0 > tx0) { // tz0 max. entry xy
+				if(txm < tz0) answer |= 4;
+				if(tym < tz0) answer |= 2;
+			}
+			else { //tx0 max. entry yz
+				if(tym < tx0) answer |= 2;
+				if(tzm < tx0) answer |= 1;
+			}
+		} else {
+			if(ty0 > tz0) { // ty0 max. entry xz
+				if(txm < ty0) answer |= 4;
+				if(tzm < ty0) answer |= 1;
+			} else { // tz0 max. entry XY
+				if(txm < tz0) answer |= 4;
+				if(tym < tz0) answer |= 2;
 			}
 		}
-
-		if(txm < tz0) answer|=4;
-		if(tym < tz0) answer|=2;
 		return (int) answer;
 	}
+
  	private int NewNode(double txm, int x, double tym, int y, double tzm, int z){
 		if(txm < tym){
 			if(txm < tzm){return x;}  // YZ plane
@@ -73,8 +80,100 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		}
 		return z; // XY plane;
 	}
-	private void RayStep(Node root, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
-		Vector3 rootMax = root.Position + Vector3.one * (float)root.Size;
+	private struct ParameterData {
+		public double tx0;
+		public double ty0;
+		public double tz0;
+		public double tx1;
+		public double ty1;
+		public double tz1;
+		public sbyte a;
+		public Node node;
+
+		public ParameterData(double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, sbyte a, Node node) {
+			this.tx0 = tx0;
+			this.ty0 = ty0;
+			this.tz0 = tz0;
+			this.tx1 = tx1;
+			this.ty1 = ty1;
+			this.tz1 = tz1;
+			this.a = a;
+			this.node = node;
+		}
+	}
+
+ 	private void ProcSubtree (Vector3 rayOrigin, Vector3 rayDirection, double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, Node node, List<Node> intersectedNodes, sbyte a){
+		int frame = 0;
+		ParameterData[] stack = new ParameterData[20];
+
+		while(frame > 0) {
+			float txm, tym, tzm;
+			int currNode;
+
+			if(node == null || tx1 <= 0 || ty1 <= 0 || tz1 <= 0) { 
+				return;
+			}
+			if(node.Leaf){
+				intersectedNodes.Add(node);
+				return;
+			}
+
+			txm = (float)(0.5*(tx0 + tx1)); 	
+			tym = (float)(0.5*(ty0 + ty1)); 	
+			tzm = (float)(0.5*(tz0 + tz1)); 	
+			currNode = FirstNode(tx0,ty0,tz0,txm,tym,tzm);
+
+
+
+			do { 		
+				switch (currNode) { 		
+				case 0: {  			
+					ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,txm,tym,tzm,node.Children[a], intersectedNodes, a);
+					currNode = NewNode(txm,4,tym,2,tzm,1);
+					break;
+				}
+				case 1: {
+					ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tzm,txm,tym,tz1,node.Children[1^a], intersectedNodes, a);
+					currNode = NewNode(txm,5,tym,3,tz1,8);
+					break;
+				}
+				case 2: {
+					ProcSubtree(rayOrigin, rayDirection, tx0,tym,tz0,txm,ty1,tzm,node.Children[2^a], intersectedNodes, a);
+					currNode = NewNode(txm,6,ty1,8,tzm,3);
+					break;
+				}
+				case 3: {
+					ProcSubtree(rayOrigin, rayDirection, tx0,tym,tzm,txm,ty1,tz1,node.Children[3^a], intersectedNodes, a);
+					currNode = NewNode(txm,7,ty1,8,tz1,8);
+					break;
+				}
+				case 4: {
+					ProcSubtree(rayOrigin, rayDirection, txm,ty0,tz0,tx1,tym,tzm,node.Children[4^a], intersectedNodes, a);
+					currNode = NewNode(tx1,8,tym,6,tzm,5);
+					break;
+				}
+				case 5: {
+					ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.Children[5^a], intersectedNodes, a);
+					currNode = NewNode(tx1,8,tym,7,tz1,8);
+					break;
+				}
+				case 6: {
+					ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.Children[6^a], intersectedNodes, a);
+					currNode = NewNode(tx1,8,ty1,8,tzm,7);
+					break;
+				}
+				case 7: {
+					ProcSubtree(rayOrigin, rayDirection, txm,tym,tzm,tx1,ty1,tz1,node.Children[7^a], intersectedNodes, a);
+					currNode = 8;
+					break;
+					}
+				}
+			} while (currNode < 8);
+		}
+	}
+
+ 	private void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
+		Vector3 nodeMax = node.Position + Vector3.one * (float)node.Size;
 		sbyte a = 0;
  		if(rayDirection.x < 0) {
 			rayOrigin.x = -rayOrigin.x;
@@ -95,71 +194,15 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
  		double divx = 1 / rayDirection.x; // IEEE stability fix
 		double divy = 1 / rayDirection.y;
 		double divz = 1 / rayDirection.z;
- 		double tx0 = (root.Position.x - rayOrigin.x) * divx;
-		double tx1 = (rootMax.x - rayOrigin.x) * divx;
-		double ty0 = (root.Position.y - rayOrigin.y) * divy;
-		double ty1 = (rootMax.y - rayOrigin.y) * divy;
-		double tz0 = (root.Position.z - rayOrigin.z) * divz;
-		double tz1 = (rootMax.z - rayOrigin.z) * divz;
+ 		double tx0 = (node.Position.x - rayOrigin.x) * divx;
+		double tx1 = (nodeMax.x - rayOrigin.x) * divx;
+		double ty0 = (node.Position.y - rayOrigin.y) * divy;
+		double ty1 = (nodeMax.y - rayOrigin.y) * divy;
+		double tz0 = (node.Position.z - rayOrigin.z) * divz;
+		double tz1 = (nodeMax.z - rayOrigin.z) * divz;
 
-		Stack<Node> stack = new Stack<Node>();
-		Node node = root;
-		stack.Push(root);
-		int level = 1;
-
- 		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) { 		
-			//ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,tx1,ty1,tz1,node,intersectedNodes, a);
-			float txm, tym, tzm;
-			int currNode;
-
-			if(node == null || !(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) || Mathd.Min(tx1, ty1, tz1) < 0) { 
-				return;
-			}
-			if(node.Leaf){
-				intersectedNodes.Add(node);
-				return;
-			}
-
-			txm = (float)(0.5*(tx0 + tx1)); 	
-			tym = (float)(0.5*(ty0 + ty1)); 	
-			tzm = (float)(0.5*(tz0 + tz1)); 	
-			currNode = FirstNode(tx0,ty0,tz0,txm,tym,tzm); 	
-			do { 		
-				switch (currNode) { 		
-				case 0: {  			
-					ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,txm,tym,tzm,node.Children[a], intersectedNodes, a);
-					currNode = NewNode(txm,4,tym,2,tzm,1);
-					break;}
-				case 1: {
-					ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tzm,txm,tym,tz1,node.Children[1^a], intersectedNodes, a);
-					currNode = NewNode(txm,5,tym,3,tz1,8);
-					break;}
-				case 2: {
-					ProcSubtree(rayOrigin, rayDirection, tx0,tym,tz0,txm,ty1,tzm,node.Children[2^a], intersectedNodes, a);
-					currNode = NewNode(txm,6,ty1,8,tzm,3);
-					break;}
-				case 3: {
-					ProcSubtree(rayOrigin, rayDirection, tx0,tym,tzm,txm,ty1,tz1,node.Children[3^a], intersectedNodes, a);
-					currNode = NewNode(txm,7,ty1,8,tz1,8);
-					break;}
-				case 4: {
-					ProcSubtree(rayOrigin, rayDirection, txm,ty0,tz0,tx1,tym,tzm,node.Children[4^a], intersectedNodes, a);
-					currNode = NewNode(tx1,8,tym,6,tzm,5);
-					break;}
-				case 5: {
-					ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.Children[5^a], intersectedNodes, a);
-					currNode = NewNode(tx1,8,tym,7,tz1,8);
-					break;}
-				case 6: {
-					ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.Children[6^a], intersectedNodes, a);
-					currNode = NewNode(tx1,8,ty1,8,tzm,7);
-					break;}
-				case 7: {
-					ProcSubtree(rayOrigin, rayDirection, txm,tym,tzm,tx1,ty1,tz1,node.Children[7^a], intersectedNodes, a);
-					currNode = 8;
-					break;}
-				}
-			} while (currNode < 8);
+ 		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 		
+			ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,tx1,ty1,tz1,node,intersectedNodes, a);
 		}
 	}
 
