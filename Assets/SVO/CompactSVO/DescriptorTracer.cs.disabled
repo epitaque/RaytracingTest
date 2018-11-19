@@ -1,76 +1,29 @@
-using System.Collections.Generic;
-using System.Linq;
-using System;
+	using System.Collections.Generic;
 using UnityEngine;
-using RT.CS;
 
 namespace RT.CS {
-public class NaiveTracer : CompactSVO.CompactSVOTracer {
-	private Node ExpandSVO(List<uint> svo) {
-		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
-		ExpandSVOAux(root, 0, 1, svo);
-		return root;
+public class DescriptorTracer : CompactSVO.CompactSVOTracer {
+	public List<SVONode> Trace(Ray ray, List<uint> svo) {
+		return null;
 	}
 
-	/*
-	    child pointer | valid mask | leaf mask
-            16			   8			8
-	 */
-	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<uint> svo) { 
-		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
- 
-		node.Children = new Node[8]; 
-		int pointer = descriptor.childPointer;
-		double half = node.Size/2d;
-
-		for(int childNum = 0; childNum < 8; childNum++) { 
-			if(descriptor.Valid(childNum)) {
-				bool leaf = descriptor.Leaf(childNum);
-
-				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
-				node.Children[childNum] = child;
-
-				if(!leaf) {
-					ExpandSVOAux(node.Children[childNum], pointer++, level + 1, svo);
-				}
-			}
-		}
-	}
-
-	/*
-		Ray Tracing methods
-		Returns a list of nodes that intersect a ray (in sorted order)
-	 */
-	public List<SVONode> Trace(UnityEngine.Ray ray, List<uint> svo) {
-		List<Node> intersectedNodes = new List<Node>();
-		RayStep(ExpandSVO(svo), ray.origin, ray.direction, intersectedNodes);
-		return intersectedNodes.ConvertAll(node => (SVONode)node).ToList();
-	}
-	
 	private int FirstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
 		sbyte answer = 0;
 
-		if(tx0 > ty0) {
-			if(tz0 > tx0) { // tz0 max. entry xy
-				if(txm < tz0) answer |= 4;
-				if(tym < tz0) answer |= 2;
-			}
-			else { //tx0 max. entry yz
-				if(tym < tx0) answer |= 2;
-				if(tzm < tx0) answer |= 1;
-			}
-		} else {
-			if(ty0 > tz0) { // ty0 max. entry xz
-				if(txm < ty0) answer |= 4;
-				if(tzm < ty0) answer |= 1;
-			} else { // tz0 max. entry XY
-				if(txm < tz0) answer |= 4;
-				if(tym < tz0) answer |= 2;
+		if(tx0 > ty0){
+			if(tx0 > tz0){
+				if(tym < tx0) answer|=2;
+				if(tzm < tx0) answer|=1;
+				if(txm < ty0) answer|=4;
+				if(tzm < ty0) answer|=1;
+				return (int) answer;
 			}
 		}
+
+		if(txm < tz0) answer|=4;
+		if(tym < tz0) answer|=2;
 		return (int) answer;
 	}
-
  	private int NewNode(double txm, int x, double tym, int y, double tzm, int z){
 		if(txm < tym){
 			if(txm < tzm){return x;}  // YZ plane
@@ -84,7 +37,7 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 		float txm, tym, tzm;
 		int currNode;
 
-		if(node == null || tx1 <= 0 || ty1 <= 0 || tz1 <= 0) { 
+		if(node == null || !(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) || Mathd.Min(tx1, ty1, tz1) < 0) { 
 			return;
 		}
 		if(node.Leaf){
@@ -121,7 +74,7 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 			case 5: {
 				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.Children[5^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,tym,7,tz1,8);
-				break;}
+				br eak;}
 			case 6: {
 				ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.Children[6^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,ty1,8,tzm,7);
@@ -167,50 +120,8 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 		}
 	}
 
-	/*
-		Debug Methods
-	 */
-
 	public List<SVONode> GetAllNodes(List<uint> svo) {
-		List<SVONode> nodes = new List<SVONode>();
-		testRoot = ExpandSVO(svo);
-		GetAllNodesAux(ExpandSVO(svo), nodes);
-		return nodes;
+		return null;
 	}
-
-	private void GetAllNodesAux(Node node, List<SVONode> nodes) {
-		if(node == null) { return; }
-		
-		nodes.Add(node);
-
-		if(node.Children != null) {
-			for(int i = 0; i < 8; i++) {
-				GetAllNodesAux(node.Children[i], nodes);
-			}
-		}
-	}
-	
-	public void DrawGizmos(float scale) {
-	}
-
-	// Test the tracing functionality
-
-	public static Node testRoot;
-	static NaiveTracer() {
-		/*Debug.Log("Attempting NaiveTracer test");
-		NaiveCreator c = new NaiveCreator();
-		NaiveTracer t = new NaiveTracer();
-		List<uint> nodes = new List<uint>();
-		nodes = c.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
-
-		testRoot = new Node(new Vector3(-1, -1, -1), 2, 1, false);
-		t.ExpandSVOAux(testRoot, 0, 1, nodes);
-
-		string result = "NaiveTracer Expand SVO test: \n";
-		result += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code))) + "\n\n";
-		result += "Uncompressed: \n" + testRoot.StringifyHierarchy();
-		Debug.Log(result);*/
-	}
-
 }
 }

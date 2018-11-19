@@ -41,13 +41,14 @@ public class SVONode {
 		Position = position;
 	}
 
-	public ColoredBox GetColoredBox() {
+	public virtual ColoredBox GetColoredBox() {
 		ColoredBox box = new ColoredBox();
 		box.Center = GetCenter();
 		box.Color = UtilFuncs.SinColor(Level * 2f);
 		box.Color.a = 0.07f;
 		box.Size = Vector3.one * (float)Size;
-		return box;		}
+		return box;		
+	}
 
 	public Vector3 GetCenter() {
 		return Position + Vector3.one * ((float)Size / 2);

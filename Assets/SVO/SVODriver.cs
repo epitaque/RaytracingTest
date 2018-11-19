@@ -42,7 +42,6 @@ public class SVODriver : MonoBehaviour {
 
 	public void Start() {
 		UpdateSVO();
-		UpdateRaycast();
 	}
 
 	void OnValidate() {
@@ -75,7 +74,12 @@ public class SVODriver : MonoBehaviour {
 
 		intersectedNodesBoxes = svo.Trace(currentRay)
 			.Where(node => node.Level <= upperNodeDrawBound && node.Level >= lowerNodeDrawBound)
-			.Select(node => node.GetColoredBox());
+			.Select(node => {
+				ColoredBox b = node.GetColoredBox();
+				b.Color.a = 1.0f;
+				return b;
+			});
+
 	}
 
     void OnDrawGizmos() {

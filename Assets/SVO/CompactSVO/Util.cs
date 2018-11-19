@@ -8,9 +8,25 @@ public class Node : SVONode {
 		Size = size;
 		Level = level;
 		Leaf = leaf;
+		ErrorNode = false;
 	}
 
+	public Boolean ErrorNode;
 	public Node[] Children;
+
+	public override ColoredBox GetColoredBox() {
+		ColoredBox box = new ColoredBox();
+		box.Center = GetCenter();
+		if(!ErrorNode) {
+			box.Color = UtilFuncs.SinColor(Level * 2f);
+		}
+		else {
+			box.Color = Color.red;
+		}
+		box.Color.a = 0.07f;
+		box.Size = Vector3.one * (float)Size;
+		return box;		
+	}
 
 	public string StringifyHierarchy() {
 		string result = "";
