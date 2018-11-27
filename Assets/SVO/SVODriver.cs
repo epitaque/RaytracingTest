@@ -70,6 +70,7 @@ public class SVODriver : MonoBehaviour {
 	}
 
 	void UpdateRaycast() {
+		if(!UnityEditor.EditorApplication.isPlaying) {return;}
 		currentRay = new Ray(lastRayStartPosition / scale, lastRayEndPosition - lastRayStartPosition);
 
 		intersectedNodesBoxes = svo.Trace(currentRay)
@@ -84,13 +85,18 @@ public class SVODriver : MonoBehaviour {
 
     void OnDrawGizmos() {
 		if(!UnityEditor.EditorApplication.isPlaying) {return;}
+		
 		foreach(ColoredBox box in debugBoxes) {
         	Gizmos.color = box.Color;
 			Gizmos.DrawCube(box.Center * scale, box.Size * scale);
 		}
+		float i = 1;
 		foreach(ColoredBox box in intersectedNodesBoxes) {
-        	Gizmos.color = box.Color;
+        	Color c = box.Color;
+			c.b = i;
+			Gizmos.color = c;
 			Gizmos.DrawCube(box.Center * scale, box.Size * scale);
+			i -= 0.2f;
 		}
 		Gizmos.color = Color.blue;
 		Gizmos.DrawLine(lastRayStartPosition, currentRay.direction * 1000);

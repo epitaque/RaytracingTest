@@ -1,0 +1,220 @@
+/*
+	Ray Tracing methods
+	Returns a list of nodes that intersect a ray (in sorted order)
+ */
+public List<SVONode> Trace(UnityEngine.Ray ray, List<uint> svo) {
+	List<Node> intersectedNodes = new List<Node>();
+	RayStep(ExpandSVO(svo), ray.origin, ray.direction, intersectedNodes);
+	return intersectedNodes.ConvertAll(node => (SVONode)node).ToList();
+}
+
+private int FirstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
+	sbyte answer = 0;
+
+	if(tx0 > ty0) {
+		if(tz0 > tx0) { // tz0 max. entry xy
+			if(txm < tz0) answer |= 4;
+			if(tym < tz0) answer |= 2;
+		}
+		else { //tx0 max. entry yz
+			if(tym < tx0) answer |= 2;
+			if(tzm < tx0) answer |= 1;
+		}
+	} else {
+		if(ty0 > tz0) { // ty0 max. entry xz
+			if(txm < ty0) answer |= 4;
+			if(tzm < ty0) answer |= 1;
+		} else { // tz0 max. entry XY
+			if(txm < tz0) answer |= 4;
+			if(tym < tz0) answer |= 2;
+		}
+	}
+	return (int) answer;
+}
+
+private static int NewNode(double txm, int x, double tym, int y, double tzm, int z){
+	if(txm < tym){
+		if(txm < tzm){return x;}  // YZ plane
+	}
+	else{
+		if(tym < tzm){return y;} // XZ plane
+	}
+	return z; // XY plane;
+}
+
+private class ParameterData {
+	public Vector3 t0;
+	public Vector3 t1;
+	public Node node;
+	public int currNode;
+
+	public ParameterData(Vector3 t0, Vector3 t1, Node node, int currNode) {
+		this.t0 = t0;
+		this.t1 = t1;
+		this.node = node;
+		this.currNode = currNode;
+	}
+}
+
+private void RayStep(Node root, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
+	Vector3 nodeMax = root.Position + Vector3.one * (float)root.Size;
+
+	if(root == null || rayDirection.x == 0 || rayDirection.y == 0 || rayDirection.z == 0) {
+		return;
+	}
+
+	sbyte a = 0;
+	if(rayDirection.x < 0) {
+		rayOrigin.x = -rayOrigin.x;
+		rayDirection.x = -rayDirection.x;
+		a |= 4;
+	}
+	if(rayDirection.y < 0){        
+		rayOrigin.y = -rayOrigin.y;
+		rayDirection.y = -rayDirection.y;
+		a |= 2;
+	}
+	if(rayDirection.z < 0){        
+		rayOrigin.z =  -rayOrigin.z;
+		rayDirection.z = -rayDirection.z;
+		a |= 1;
+	}
+
+	double divx = 1 / rayDirection.x; // IEEE stability fix
+	double divy = 1 / rayDirection.y;
+	double divz = 1 / rayDirection.z;
+	double tx0 = (root.Position.x - rayOrigin.x) * divx;
+	double tx1 = (nodeMax.x - rayOrigin.x) * divx;
+	double ty0 = (root.Position.y - rayOrigin.y) * divy;
+	double ty1 = (nodeMax.y - rayOrigin.y) * divy;
+	double tz0 = (root.Position.z - rayOrigin.z) * divz;
+	double tz1 = (nodeMax.z - rayOrigin.z) * divz;
+
+	Vector3 t0 = new Vector3((float)tx0, (float)ty0, (float)tz0);
+	Vector3 t1 = new Vector3((float)tx1, (float)ty1, (float)tz1);
+
+	ParameterData[] stack = new ParameterData[30];
+	int sf = 0;
+	stack[sf] = new ParameterData(t0, t1, root, -1);
+
+	if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){    
+		while(sf >= 0) {
+			ParameterData data = stack[sf];
+			Node node = data.node;
+			t0 = data.t0;
+			t1 = data.t1;
+
+			if(node == null || data.currNode > 7) {
+				sf--;
+				continue;
+			}
+			if(node.Leaf){
+				// We assume leaves are solid, so we add them as intersected.
+				// NOTE(): depending on how you make your SVO or how it is stored
+				// leaves may not always be solid but this seems an OK assumption for
+				// the SVO paper.
+				intersectedNodes.Add(node);
+				sf--;
+				continue;
+			}
+
+			// Find the center of the "node".
+			// NOTE: wrt. the cost of recalculating this, the calculation is miniscule.
+			// In fact you can probably recalulate t0, t1 and tm each loop without an issue.
+			// Ultimately, there is a way to avoid storing or calculating them each frame,
+			// somehow. The ESVO paper's pseudocode stores only `(parent, t_max)` for each
+			// stackframe. In my implementation I was able to store just `(parent, childidx)`
+			// for each stackframe.
+
+			// Reply: 
+			// tm isn't exactly the center of the node. Each of the components of tm represents
+			// the distances the ray has to travel to reach the components of the center of the node.
+			// (if this doesn't make sense let me know, there is an easy way to visually show this)
+			Vector3 tm = 0.5f*(t0 + t1);
+
+			// If the corner idx is not set, set _this current node_ to start with the first child.
+			// NOTE: this whole choosing -1 and then making a condition on it; why not choose the
+			// correct FirstNode() to begin with when creating the nextFrame below?
+
+			// Reply: 
+			// Calculating idx/currNode using the FirstNode methods requires t0 and tm
+			// In the previous stackframe, t0 is easy to find, as it is already calculated when ParameterData is created
+			// Finding tm in the previous stackframe would be an extra calculation
+			// But, calculating tm is probably so easy that it's faster than adding branch and not calculating tm an extra time
+			data.currNode = data.currNode == -1 ? FirstNode(t0.x,t0.y,t0.z,tm.x,tm.y,tm.z) : data.currNode;
+		   
+			// Descend into the octree.
+			// Examine the ray against the child node.
+			// NOTE(): I don't see you checking for empty children here; does your SVO assume
+			// that any non-leaf has all children in existence? Oh that is why you check for null
+			// node at the beginning of the function. Maybe a slight optimization would be to check
+			// it earlier. NVM for now. Related note on this below at the end of the loop.
+
+			// Reply:
+			// Correct, the next line selects a child node to descend into based on currNode^a
+			// and also calculates the correct t0 and t1 for the child
+			// In my implementation, a node can have anywhere from 1-8 children
+			// And yeah, Line 107 checks for a null node
+			ParameterData nextFrame = new ParameterData(getT0(t0, tm, data.currNode), getT1(tm, t1, data.currNode), data.node.Children[data.currNode^a], -1);
+
+			// Since we already tested the ray against `(node,childidx)` aka `(node,currNode)`,
+			// Change the current stack to test against another child in this node; getNewNode()
+			// will intelligentlly pick another child to test against so that we don't choose
+			// a child the ray misses entirely, and so that we don't choose an occluded child
+			// before the occluding child.
+			// NOTE(): ^ make sure something in your code actually accomplishes that. I don't
+			// see how getNewNode can do that since it disn't take ray direction or `a` into
+			// account.
+
+			// Reply: 
+			// getNewNode doesn't do all the work finding the new node. See that when ParameterData is created, 
+			// the child that is selected is data.currNode^a, not just data.currNode 
+			// Without a, the code would only work if all the components of the ray direction are positive
+			//
+			// Also, here's how the getNewNode function works
+			// Set currNode to the child node that is about to be pushed to the stack (data.node.Children[data.currNode^a])
+			// Now find t1 for currNode
+			// The minimum component of t1 can be used to find the exit plane of currNode
+			// E.g. if the x component is a minimum, the exit plane is the yz plane
+			// Since we know the exit plane, whichever node is on the other side of that plane but is still adjacent to
+			// currNode is the new node to be selected
+			data.currNode = getNewNode(tm, t1, data.currNode);
+			// NOTE(): This is called PUSH section in the paper.
+			stack[++sf] = nextFrame;
+
+			// NOTE(): some final confusion to me about this loop, is that it is unclear
+			// what you are examining in each iteration; sometimes it is `node` itself
+			// (i.e as in the leaf test at the beginning of the loop), and sometimes it
+			// is the child of node. It seems to me that this can be refactored to be
+			// consistent. i.e you can decide to _exclusively_ put non-leafs on the stack
+			// and that leaf test will be refactored to be `is_leaf(node,data.currNode)`.
+			// And the last section of this loop does two things intermingled; which
+			// should be separated. It 1. descends into the octree, and 2. it adjusts
+			// which currNode at the current level/stackframe/depth we will examine upon
+			// visiting the current stackframe again.
+			// If you separate these two things, you can surround each part by a condition,
+			// which is necessary for this refactor.
+
+			// Reply:
+			// For clarification, each loop is meant to examine a node specified by the previous stackframe
+			// Not sure how to separate 1. descending and 2. adjusting currNode using a condition.
+			// Both need to be done at some point during every loop.
+			// although I suppose I could find currNode before calculating nextFrame to avoid confusion.
+			// I agree that it would be simpler to only add non-leafs to the stack
+		}
+	}
+}
+
+private static Vector3 getT0(Vector3 t0, Vector3 tm, int currNode) {
+	float[] arr = new float[] {t0.x, t0.y, t0.z, tm.x, tm.y, tm.z};
+	return new Vector3(arr[((currNode & 4) >> 2) * 3],  arr[1 + ((currNode & 2) >> 1) * 3], arr[2 + (currNode & 1) * 3]);
+}
+private static Vector3 getT1(Vector3 tm, Vector3 t1, int currNode) {
+	float[] arr = new float[] {tm.x, tm.y, tm.z, t1.x, t1.y, t1.z};
+	return new Vector3(arr[((currNode & 4) >> 2) * 3],  arr[1 + ((currNode & 2) >> 1) * 3], arr[2 + (currNode & 1) * 3]);
+}
+private static int getNewNode(Vector3 tm, Vector3 t1, int currNode) {
+	int[] arr = new int[] {4,2,1, 5,3,8, 6,8,3, 7,8,8, 8,6,5, 8,7,8, 8,8,7, 8,8,8};
+	Vector3 t = getT1(tm, t1, currNode);
+	return NewNode(t.x, arr[3 * currNode], t.y, arr[1 + 3*currNode], t.z, arr[2 + 3*currNode]);
+}
