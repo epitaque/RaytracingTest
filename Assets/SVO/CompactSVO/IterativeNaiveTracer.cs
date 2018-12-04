@@ -47,6 +47,9 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		return intersectedNodes.ConvertAll(node => (SVONode)node).ToList();
 	}
 
+	// Find entry node based on tmin and tmax
+	// This is done by first finding the maximum component of tmin, which determins the entry plane
+	// Then, the max of tmin is compared to tmax to determine the speicifc node index
 	private int FirstNode(double tx0, double ty0, double tz0, double txm, double tym, double tzm){
 		sbyte answer = 0;
 
@@ -82,13 +85,11 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	}
 
 	private class ParameterData {
-		public Vector3 t0;
 		public Vector3 t1;
 		public Node node;
 		public int currNode;
 
-		public ParameterData(Vector3 t0, Vector3 t1, Node node, int currNode) {
-			this.t0 = t0;
+		public ParameterData(Vector3 t1, Node node, int currNode) {
 			this.t1 = t1;
 			this.node = node;
 			this.currNode = currNode;
@@ -136,12 +137,15 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		double ty1 = nodeMax.y * divy - ty_bias;
 		double tz1 = nodeMax.z * divz - tz_bias;
 
-		Vector3 t0 = new Vector3((float)tx0, (float)ty0, (float)tz0);
-		Vector3 t1 = new Vector3((float)tx1, (float)ty1, (float)tz1);
+		Vector3 rt0 = new Vector3((float)tx0, (float)ty0, (float)tz0);
+		Vector3 rt1 = new Vector3((float)tx1, (float)ty1, (float)tz1);
+		Vector3 tdif = rt1 - rt0;
 
 		ParameterData[] stack = new ParameterData[30];
 		int sf = 0;
-		stack[sf] = new ParameterData(t0, t1, root, -1);
+		stack[sf] = new ParameterData(rt1, root, -1);
+
+		Vector3 t0, t1;
 
  		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 	
 			while(sf >= 0) {
@@ -155,13 +159,9 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 					continue;
 				}
 
-				tx0 = Mathf.Pow(-1, ((a & 4) >> 2)) * node.Position.x * divx - tx_bias;
-				ty0 = Mathf.Pow(-1, ((a & 2) >> 1)) * node.Position.y * divy - ty_bias;
-				tz0 = Mathf.Pow(-1, ((a & 1))) * node.Position.z * divz - tz_bias;
-
-
 				t0 = new Vector3((float)tx0, (float)ty0, (float)tz0);
-				//t0 = data.t0;
+				float scale = Mathf.Pow(2, -sf);
+				t0 = t1 - scale * tdif; 
 
 				if(node.Leaf){
 					intersectedNodes.Add(node);
@@ -172,9 +172,8 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 				Vector3 tm = 0.5f*(t0 + t1);
 				data.currNode = data.currNode == -1 ? FirstNode(t0.x,t0.y,t0.z,tm.x,tm.y,tm.z) : data.currNode;
 
-				Vector3 childT0 = getT0(t0, tm, data.currNode);
 				Vector3 childT1 = getT1(tm, t1, data.currNode);
-				ParameterData nextFrame = new ParameterData(childT0, childT1, data.node.Children[data.currNode^a], -1);
+				ParameterData nextFrame = new ParameterData(childT1, data.node.Children[data.currNode^a], -1);
 				data.currNode = getNewNode(tm, t1, data.currNode);				
 				stack[++sf] = nextFrame;
 			}
