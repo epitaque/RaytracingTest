@@ -7,7 +7,7 @@ using RT.CS;
 namespace RT.CS {
 public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	private Node ExpandSVO(List<uint> svo) {
-		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
+		Node root = new Node(new Vector3(1, 1, 1), 1, 1, false);
 		ExpandSVOAux(root, 0, 1, svo);
 		return root;
 	}
@@ -21,13 +21,13 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
  
 		node.Children = new Node[8]; 
 		int pointer = descriptor.childPointer;
-		double half = node.Size/2d;
+		float half = node.Size/2;
 
 		for(int childNum = 0; childNum < 8; childNum++) { 
 			if(descriptor.Valid(childNum)) {
 				bool leaf = descriptor.Leaf(childNum);
 
-				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
+				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
 				node.Children[childNum] = child;
 
 				if(!leaf) {
@@ -84,6 +84,10 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		return z; // XY plane;
 	}
 
+	// Goal: 8 bytes
+	// first 4 bytes: parent id
+	// last 4 bytes: t_max (not vector)
+	// current goal: get rid of currNode
 	private class ParameterData {
 		public Vector3 t1;
 		public Node node;
@@ -101,27 +105,32 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		// 'a' is used to flip the bits that correspond with a negative ray direction
 		// when picking a child node
 		sbyte a = 0;
+
+		Vector3 nodeMin = root.Position;
+		Vector3 nodeMax = root.Position + Vector3.one * root.Size;
+
  		if(rayDirection.x < 0) {
-			rayOrigin.x = -rayOrigin.x;
+			rayOrigin.x = (- (rayOrigin.x - 1.5f)) + 1.5f;
 			rayDirection.x = -rayDirection.x;
 			a |= 4;
 		}
 		if(rayDirection.y < 0) { 		
-			rayOrigin.y = -rayOrigin.y;
+			rayOrigin.y = (- (rayOrigin.y - 1.5f)) + 1.5f;
 			rayDirection.y = -rayDirection.y;
 			a |= 2;
 		}
 		if(rayDirection.z < 0) { 		
-			rayOrigin.z =  -rayOrigin.z;
+			rayOrigin.z =  (- (rayOrigin.z - 1.5f)) + 1.5f;
 			rayDirection.z = -rayDirection.z;
 			a |= 1;
 		}
 
-		if(rayDirection.x == 0) rayDirection.x += float.Epsilon;
-		if(rayDirection.y == 0) rayDirection.y += float.Epsilon;
-		if(rayDirection.z == 0) rayDirection.z += float.Epsilon;
+		//if(rayDirection.x == 0) rayDirection.x += 0.00000001f; //float.Epsilon * 500000;
+		//if(rayDirection.y == 0) rayDirection.y += float.Epsilon * 128;
+		//if(rayDirection.z == 0) rayDirection.z += float.Epsilon * 128;
 
-		Vector3 nodeMax = root.Position + Vector3.one * (float)root.Size;
+		//Debug.Log("Root position: " + root.Position);
+
  		double divx = 1 / rayDirection.x;
 		double divy = 1 / rayDirection.y;
 		double divz = 1 / rayDirection.z;
@@ -146,38 +155,87 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		stack[sf] = new ParameterData(rt1, root, -1);
 
 		Vector3 t0, t1;
+		Vector3 pos = new Vector3(1, 1, 1);
 
- 		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 	
-			while(sf >= 0) {
-				ParameterData data = stack[sf];
-				Node node = data.node;
+		int idx;
 
-				t1 = data.t1;
-
-				if(node == null || data.currNode > 7 || t1.x <= 0 || t1.y <= 0 || t1.z <= 0) { 
-					sf--;
-					continue;
-				}
-
-				t0 = new Vector3((float)tx0, (float)ty0, (float)tz0);
-				float scale = Mathf.Pow(2, -sf);
-				t0 = t1 - scale * tdif; 
-
-				if(node.Leaf){
-					intersectedNodes.Add(node);
-					sf--;
-					continue;
-				}
-
-				Vector3 tm = 0.5f*(t0 + t1);
-				data.currNode = data.currNode == -1 ? FirstNode(t0.x,t0.y,t0.z,tm.x,tm.y,tm.z) : data.currNode;
-
-				Vector3 childT1 = getT1(tm, t1, data.currNode);
-				ParameterData nextFrame = new ParameterData(childT1, data.node.Children[data.currNode^a], -1);
-				data.currNode = getNewNode(tm, t1, data.currNode);				
-				stack[++sf] = nextFrame;
-			}
+ 		if(Mathd.Max(tx0,ty0,tz0) >= Mathd.Min(tx1,ty1,tz1)) { 	
+			return;
 		}
+
+		while(sf >= 0) {
+			ParameterData data = stack[sf];
+			Node node = data.node;
+
+			if(node != null && pos.x != node.Position.x) {
+				Debug.Log("Pos.x != node.position.x. Pos.x: " + pos.x + ", node.position.x: " + node.Position.x);
+			}
+
+			t1 = data.t1;
+
+			if(node == null || data.currNode > 7 || t1.x <= 0 || t1.y <= 0 || t1.z <= 0) {
+				// Round position to parent position
+				pos = roundPosition(pos, sf);
+
+				sf--;
+				continue;
+			}
+
+
+			t0 = new Vector3((float)tx0, (float)ty0, (float)tz0);
+			float scale = Mathf.Pow(2, -sf);
+			t0 = t1 - scale * tdif; 
+			if(Mathd.Max(t0.x,t0.y,t0.z) >= Mathd.Min(t1.x,t1.y,t1.z)) {
+				Debug.Log("Mistakenly added a node to be intersected...");
+			}
+
+			if(node.Leaf){
+				intersectedNodes.Add(node);
+				pos = roundPosition(pos, sf);
+				sf--;
+				continue;
+			}
+
+			Vector3 tm = 0.5f*(t0 + t1);
+			data.currNode = data.currNode == -1 ? FirstNode(t0.x,t0.y,t0.z,tm.x,tm.y,tm.z) : data.currNode;
+
+
+
+			if((data.currNode & 1) == 1) {
+				pos.x += scale*0.25f;
+			}
+			if((data.currNode & 2) == 2) {
+				pos.y += scale*0.25f;
+			}
+			if((data.currNode & 4) == 4) {
+				pos.z += scale*0.25f;
+			}
+
+			Vector3 childT1 = getT1(tm, t1, data.currNode);
+			ParameterData nextFrame = new ParameterData(childT1, data.node.Children[data.currNode^a], -1);
+			data.currNode = getNewNode(tm, t1, data.currNode);				
+			stack[++sf] = nextFrame;
+		}
+	}
+
+	private static Vector3 roundPosition(Vector3 pos, int sf) {
+		float[] pos_f = new float[] { pos.x, pos.y, pos.z };
+		int[] pos_i = new int[3];
+
+
+		Buffer.BlockCopy(pos_f, 0, pos_i, 0, 3 * 4);
+		int shift = 23 - sf;
+
+		int shx = (pos_i[0] >> shift) << shift;
+		int shy = (pos_i[1] >> shift) << shift;
+		int shz = (pos_i[2] >> shift) << shift;
+		Buffer.BlockCopy(pos_i, 0, pos_f, 0, 3 * 4);
+
+
+		pos.x = pos_f[0];
+		pos.y = pos_f[1];
+		pos.z = pos_f[2];
+		return pos;
 	}
 
 	private static Vector3 getT0(Vector3 t0, Vector3 tm, int currNode) {
@@ -218,6 +276,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	}
 	
 	public void DrawGizmos(float scale) {
+
 	}
 
 	// Test the tracing functionality

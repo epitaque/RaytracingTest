@@ -20,22 +20,70 @@ __device__ void cast_ray(
 	if (fabsf(d.z) < epsilon) d.z = copysignf(epsilon, d.z);
 
 	// Precompute the coefficients of tx(x), ty(y), and tz(z).
+
+	// useful equations
+	// x(t) = p.x + t * d.x  (any x value lying on ray is defined in terms of this parametric function)
+	// x0(q) <= x < x1(q)  (set of all points within a node q)
+	// tx0(q,r) = (x0(q) - p.x) / d.x (minimum t value at which ray intersects node)
+	// tx1(q,r) = (x1(q) - p.x) / d.x (maximum t value at which ray intersects node)
+	
+	// tx0 rewritten with coefficient
+	// tx0(q,r) = (-1 / d.x) * (p.x - x0(q))
+	// eq2      = (-1 / d.x) * p.x - (-1 / d.x) * x0(q)
+ 
+
 	// The octree is assumed to reside at coordinates [1, 2].
 	float tx_coef = 1.0f / -fabs(d.x);
 	float ty_coef = 1.0f / -fabs(d.y);
 	float tz_coef = 1.0f / -fabs(d.z);
+
+	// this is the first part [(-1 / d.x) * p.x] in eq2
 	float tx_bias = tx_coef * p.x;
 	float ty_bias = ty_coef * p.y;
 	float tz_bias = tz_coef * p.z;
 
 	// Select octant mask to mirror the coordinate system so
 	// that ray direction is negative along each axis.
+	// = [3 * (-1 / d.x)] - [(-1 / d.x) * p.x]
+	// = [(-3 / d.x)] + [(p.x / d.x)]
+	// = [(p.x - 3) / d.x]
+	// = [(-1 / d.x) * (3 - p.x)]
+	// basically just recalculates tx_bias to be the -xorigin + 3 for whatever region
+	// now range is [2, 1]
+	// just manipulates tx_bias to work with coordinate system
 	int octant_mask = 7;
 	if (d.x > 0.0f) octant_mask ˆ= 1, tx_bias = 3.0f * tx_coef - tx_bias;
 	if (d.y > 0.0f) octant_mask ˆ= 2, ty_bias = 3.0f * ty_coef - ty_bias;
 	if (d.z > 0.0f) octant_mask ˆ= 4, tz_bias = 3.0f * tz_coef - tz_bias;
 
 	// Initialize the active span of t-values.
+	// node bounds: [1, 2]
+	// tmin = max(2*txcoef - tx_bias)
+
+	// formula for t_min without nvidia's simplifications
+	// x0(q) = 1 when q = root node
+	// (x0(q) - p.x) / d.x
+	// (1 - p.x) / d.x
+
+	// formula for t_min using nvidia's way
+
+	// if d.x is positive
+	// 2.0f * tx_coef - tx_bias
+	// 2.0f * tx_coef - 3.0f * tx_coef - tx_coef * p.x
+	// -1.0f * tx_coef - p.x * tx_coef
+	// (-1 - p.x) * tx_coef
+	// (-1 - p.x) * (1 / -d.x)
+	// -(-1 - p.x) * (1 / d.x)
+	// (1 + p.x) / d.x
+	// now, calculate what you would need to plug in for p.x for it to match 1 - p.x / d.x
+	// it would be -p.x
+	// the above equation calculates tmin as if the origin had been reflected about (0, 0)
+
+	// if d.x is negative
+	// 2.0f * tx_coef - tx_bias
+	// 2.0f * tx_coef - tx_bias
+
+
 	float t_min = fmaxf(fmaxf(2.0f * tx_coef - tx_bias, 2.0f * ty_coef - ty_bias), 2.0f * tz_coef - tz_bias);
 	float t_max = fminf(fminf(tx_coef - tx_bias, ty_coef - ty_bias), tz_coef - tz_bias);
 	float h = t_max;
@@ -46,10 +94,17 @@ __device__ void cast_ray(
 	int* parent = root;
 	int2 child_descriptor = make_int2(0, 0); // invalid until fetched
 	int idx = 0;
-	float3 pos = make_float3(1.0f, 1.0f, 1.0f);
-	int scale = s_max - 1;
+	float3 pos = make_float3(1.0f, 1.0f, 1.0f); // position of first child of root
+	int scale = s_max - 1; // scale of "parent" (22 at root)
 	float scale_exp2 = 0.5f; // exp2f(scale - s_max)
 
+	// 1.5f * tx_coef - tx_bias > t_min
+	// 1.5f * (1.0f / -fabs(d.x)) - 3.0f * (1.0f / -fabs(d.x)) - (1.0f / -fabs(d.x)) * p.x;
+	// 1.5f * (1.0f / d.x) + p.x * (1.0f / d.x)
+	// (1.5f + p.x) / d.x
+
+	// idx = current child index
+	// also sets position of the correct child of root
 	if (1.5f * tx_coef - tx_bias > t_min) idx ˆ= 1, pos.x = 1.5f;
 	if (1.5f * ty_coef - ty_bias > t_min) idx ˆ= 2, pos.y = 1.5f;
 	if (1.5f * tz_coef - tz_bias > t_min) idx ˆ= 4, pos.z = 1.5f;

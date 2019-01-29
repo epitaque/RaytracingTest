@@ -3,7 +3,7 @@ using System;
 
 namespace RT.CS {
 public class Node : SVONode {
-	public Node(Vector3 position, double size, int level, bool leaf) {
+	public Node(Vector3 position, float size, int level, bool leaf) {
 		Position = position;
 		Size = size;
 		Level = level;
@@ -46,29 +46,29 @@ public class Node : SVONode {
 public class ChildDescriptor {
 	public ushort childPointer;
 	public byte validMask;
-	public byte leafMask;
+	public byte nonLeafMask;
 
 	public ChildDescriptor(uint code) {
-		this.childPointer = (ushort)(code & 65535);
-		this.validMask = (byte)((code >> 16) & 255);
-		this.leafMask = (byte)(code >> 24);
+		this.childPointer = (ushort)(code >> 16);
+		this.validMask = (byte)((code >> 8) & 255);
+		this.nonLeafMask = (byte)((code >> 0) & 255);
 	}
 
-	public ChildDescriptor(ushort childPointer, byte validMask, byte leafMask) {
+	public ChildDescriptor(ushort childPointer, byte validMask, byte nonLeafMask) {
 		this.childPointer = childPointer;
 		this.validMask = validMask;
-		this.leafMask = leafMask;
+		this.nonLeafMask = nonLeafMask;
 	}
 
 	public bool Valid(int childNum) { return (validMask & (1 << childNum)) != 0; }
-	public bool Leaf(int childNum) { return (leafMask & (1 << childNum)) != 0; }
+	public bool Leaf(int childNum) { return (nonLeafMask & (1 << childNum)) == 0; }
 
-	public static uint ToCode(uint childPointer, uint validMask, uint leafMask) {
-		return (uint)(childPointer | (validMask << 16) | (leafMask << 24));
+	public static uint ToCode(uint childPointer, uint validMask, uint nonLeafMask) {
+		return (uint)(childPointer | (validMask << 16) | (nonLeafMask << 24));
 	}
 
 	public override string ToString() {
-		return "[ChildDescriptor childPointer: " + childPointer + ", validMask: " + Convert.ToString(validMask, 2).PadLeft(8, '0') + ", leafMask: " + Convert.ToString(leafMask, 2).PadLeft(8, '0') + "]";
+		return "[ChildDescriptor childPointer: " + childPointer + ", validMask: " + Convert.ToString(validMask, 2).PadLeft(8, '0') + ", nonLeafMask: " + Convert.ToString(nonLeafMask, 2).PadLeft(8, '0') + "]";
 	}
 }
 }

@@ -21,13 +21,13 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
  
 		node.Children = new Node[8]; 
 		int pointer = descriptor.childPointer;
-		double half = node.Size/2d;
+		float half = node.Size/2;
 
 		for(int childNum = 0; childNum < 8; childNum++) { 
 			if(descriptor.Valid(childNum)) {
 				bool leaf = descriptor.Leaf(childNum);
 
-				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
+				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
 				node.Children[childNum] = child;
 
 				if(!leaf) {

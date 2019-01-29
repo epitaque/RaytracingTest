@@ -28,13 +28,13 @@ public struct ChildDescriptorInfo {
 
 // uncompressed, naive way to store nodes
 public class SVONode {
-	public double Size;
+	public float Size;
 	public bool Leaf;
 	public int Level;
 	public Vector3 Position;
 
 	public SVONode() {}
-	public SVONode(Vector3 position, double size, bool leaf, int level) {
+	public SVONode(Vector3 position, float size, bool leaf, int level) {
 		Size = size;
 		Leaf = leaf;
 		Level = level;

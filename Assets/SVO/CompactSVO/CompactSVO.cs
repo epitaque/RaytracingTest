@@ -35,7 +35,7 @@ public class CompactSVO : SVO {
 
 	public CompactSVO(UtilFuncs.Sampler sample, int maxLevel) {
 		this.creator = new NaiveCreator();
-		this.tracer = new IterativeNaiveTracer();
+		this.tracer = new NVIDIAIterativeNaiveTracer();
 
 		Create(sample, maxLevel);
 	}

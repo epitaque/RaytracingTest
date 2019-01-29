@@ -74,10 +74,10 @@ public class SVODriver : MonoBehaviour {
 		currentRay = new Ray(lastRayStartPosition / scale, lastRayEndPosition - lastRayStartPosition);
 
 		intersectedNodesBoxes = svo.Trace(currentRay)
-			.Where(node => node.Level <= upperNodeDrawBound && node.Level >= lowerNodeDrawBound)
+			.Where(node => node != null && node.Level <= upperNodeDrawBound && node.Level >= lowerNodeDrawBound)
 			.Select(node => {
 				ColoredBox b = node.GetColoredBox();
-				b.Color.a = 1.0f;
+				b.Color.a = 0.5f;
 				return b;
 			});
 

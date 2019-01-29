@@ -6,7 +6,7 @@ using UnityEngine;
 namespace RT.CS {
 public class NaiveCreator : CompactSVO.CompactSVOCreator {
 	public List<uint> Create(UtilFuncs.Sampler sample, int maxLevel) {
-		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
+		Node root = new Node(new Vector3(1, 1, 1), 1, 1, false);
 		BuildTree(root, 1, sample, maxLevel);
 		List<uint> nodes = CompressSVO(root);
 		return nodes;
@@ -33,7 +33,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			bool childExists = false;
 			int numLeaves = 0;
 			node.Children = new Node[8];
-			double half = node.Size/2d;
+			float half = node.Size/2;
 
 			for(int i = 0; i < 8; i++) {
 				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level + 1, level + 1 == maxLevel);
@@ -102,16 +102,19 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			}
 		}
 
-        uint result = childPointer | (validMask << 16) | (leafMask << 24);
+		uint nonLeafMask = leafMask ^ 255;
+		nonLeafMask &= validMask;
+
+        uint result = (childPointer << 16) | (validMask << 8) | ( (nonLeafMask) << 0);
 		compressedNodes[nodeIndex] = result;
     }
 
 	static NaiveCreator() {
-		TestSVOCompaction();
+		//TestSVOCompaction();
 	}
 
 	public static void TestSVOCompaction() {
-		/*NaiveCreator creator = new NaiveCreator();
+		NaiveCreator creator = new NaiveCreator();
 		List<uint> nodes = new List<uint>();
 		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
 		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
@@ -119,7 +122,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		string output = "NaiveCreator SVO Compaction Test\n";
 		output += "Original Hierarchy:\n" + root.StringifyHierarchy() + "\n\n";
 		output += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code)));
-		Debug.Log(output); */
+		Debug.Log(output);
 	}
 }
 }
