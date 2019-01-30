@@ -1,0 +1,226 @@
+#define epsilon 0.00000001
+#define s_max 23
+#define SVO_SCALE 1.0f/32.0f
+#define SVO_SCALE_05 1.0f/64.0f
+#define SVO_SCALE_1 32.0f 
+
+StructuredBuffer<int> _SVO;
+
+void IntersectSVO(Ray ray, inout RayHit bestHit)  {
+	int2 stack[s_max + 1];
+
+	// Change cast range from [-32, 32] to [1, 2]
+	//ray.origin *= SVO_SCALE_05;
+
+	//ray.origin.x += 1.5f;
+	//ray.origin.y += 1.5f;
+	//ray.origin.z += 1.5f;
+
+
+	// Get rid of small ray direction components to avoid division by zero.
+	//if (abs(ray.direction.x) < epsilon) ray.direction.x = copysignf(epsilon, ray.direction.x);
+	//if (abs(ray.direction.y) < epsilon) ray.direction.y = copysignf(epsilon, ray.direction.y);
+	//if (abs(ray.direction.z) < epsilon) ray.direction.z = copysignf(epsilon, ray.direction.z);
+
+
+	float tx_coef = 1.0f / -abs(ray.direction.x);
+	float ty_coef = 1.0f / -abs(ray.direction.y);
+	float tz_coef = 1.0f / -abs(ray.direction.z);
+
+	float tx_bias = tx_coef * ray.origin.x;
+	float ty_bias = ty_coef * ray.origin.y;
+	float tz_bias = tz_coef * ray.origin.z;
+
+	int octant_mask = 7;
+	if (ray.direction.x > 0.0f) {
+		octant_mask ^= 1;
+		tx_bias = 3.0f * tx_coef - tx_bias;
+	}
+	if (ray.direction.y > 0.0f) {
+		octant_mask ^= 2; 
+		ty_bias = 3.0f * ty_coef - ty_bias;
+	}
+	if (ray.direction.z > 0.0f) {
+		octant_mask ^= 4; 
+		tz_bias = 3.0f * tz_coef - tz_bias;
+	}
+
+	float t_min = max(max(2.0f * tx_coef - tx_bias, 2.0f * ty_coef - ty_bias), 2.0f * tz_coef - tz_bias);
+	float t_max = min(min(tx_coef - tx_bias, ty_coef - ty_bias), tz_coef - tz_bias);
+	float h = t_max;
+	t_min = max(t_min, 0.0f);
+	t_max = min(t_max, 1.0f);
+
+
+	int parent = 0; // pointer to parent
+	int child_descriptor = 0; // invalid until fetched
+
+	int idx = 0;
+	float3 pos = float3(1.0f, 1.0f, 1.0f); // position of first child of root
+	int scale = s_max - 1; // scale of "child" (22 at root)
+	float scale_exp2 = 0.5f; // exp2f(scale - s_max)
+
+	if (1.5f * tx_coef - tx_bias > t_min) { 
+		idx ^= 1; pos.x = 1.5f; 
+	}
+	if (1.5f * ty_coef - ty_bias > t_min) { 
+		idx ^= 2; pos.y = 1.5f; 
+	}
+	if (1.5f * tz_coef - tz_bias > t_min) { 
+		idx ^= 4; pos.z = 1.5f; 
+	}
+
+	while (scale < s_max)
+	{
+		// Fetch child descriptor unless it is already valid.
+		if (child_descriptor == 0) {
+			child_descriptor = _SVO[parent];
+		}
+
+		
+
+		// Determine maximum t-value of the cube by evaluating
+		// tx(), ty(), and tz() at its corner.
+		float tx_corner = pos.x * tx_coef - tx_bias;
+		float ty_corner = pos.y * ty_coef - ty_bias;
+		float tz_corner = pos.z * tz_coef - tz_bias;
+		float tc_max = min(min(tx_corner, ty_corner), tz_corner);
+
+		int child_shift = idx ^ octant_mask; // permute child slots based on the mirroring
+		int child_num = child_shift ^ 7; // Purely for seeing the index of the child in the debugger. Unused variable
+		int child_masks = child_descriptor << child_shift;
+
+		if ((child_masks & 0x8000) != 0 && t_min <= t_max)
+		{
+			// INTERSECT
+			// Intersect active t-span with the cube and evaluate
+			// tx(), ty(), and tz() at the center of the voxel.
+			float tv_max = min(t_max, tc_max);
+			float half = scale_exp2 * 0.5f;
+			float tx_center = half * tx_coef + tx_corner;
+			float ty_center = half * ty_coef + ty_corner;
+			float tz_center = half * tz_coef + tz_corner;
+
+			// Descend to the first child if the resulting t-span is non-empty.
+			if (t_min <= tv_max)
+			{
+				// Terminate if the corresponding bit in the non-leaf mask is not set.
+				if ((child_masks & 0x0080) == 0) {
+					break; // at t_min (overridden with tv_min).
+				}
+					
+				// PUSH
+				// Write current parent to the stack.
+				if (tc_max < h)
+					stack[scale] = float2(parent, t_max);
+				h = tc_max;
+
+				// Find child descriptor corresponding to the current voxel.
+				// child_descriptor format: first 16 bits is child pointer
+				// next 8 is valid, next 8 is leaf
+
+				int ofs = (child_descriptor >> 16); // child pointer
+				ofs += countbits(child_masks & 0x7F); // finds (bits - 1) of shifted non-leaf mask
+				parent = ofs;
+
+				// Select child voxel that the ray enters first.
+				idx = 0;
+				scale--;
+				scale_exp2 = half;
+				if (tx_center > t_min) { idx ^= 1; pos.x += scale_exp2; }
+				if (ty_center > t_min) { idx ^= 2; pos.y += scale_exp2; }
+				if (tz_center > t_min) { idx ^= 4; pos.z += scale_exp2; }
+
+				// Update active t-span and invalidate cached child descriptor.
+				t_max = tv_max;
+				child_descriptor = 0;
+				continue;
+			}
+		}
+
+		// ADVANCE
+		// Step along the ray.
+		int step_mask = 0;
+		if (tx_corner <= tc_max) { step_mask ^= 1; pos.x -= scale_exp2; }
+		if (ty_corner <= tc_max) { step_mask ^= 2; pos.y -= scale_exp2; }
+		if (tz_corner <= tc_max) { step_mask ^= 4; pos.z -= scale_exp2; }
+
+		// Update active t-span and flip bits of the child slot index.
+		t_min = tc_max;
+		idx ^= step_mask;
+
+		// Proceed with pop if the bit flips disagree with the ray direction.
+		if ((idx & step_mask) != 0)
+		{
+			// POP
+			// Find the highest differing bit between the two positions.
+			int differing_bits = 0;
+			if ((step_mask & 1) != 0) differing_bits |= asint(pos.x) ^ asint(pos.x + scale_exp2);
+			if ((step_mask & 2) != 0) differing_bits |= asint(pos.y) ^ asint(pos.y + scale_exp2);
+			if ((step_mask & 4) != 0) differing_bits |= asint(pos.z) ^ asint(pos.z + scale_exp2);
+			scale = (asint((float)differing_bits) >> 23) - 127; // position of the highest bit
+			scale_exp2 = asfloat((scale - s_max + 127) << 23); // exp2f(scale - s_max)
+
+			// Restore parent voxel from the stack.
+			float2 stackEntry = stack[scale];
+			parent = asint(stackEntry.x);
+			t_max = stackEntry.y;
+
+			// Round cube position and extract child slot index.
+			int shx = asint(pos.x) >> scale;
+			int shy = asint(pos.y) >> scale;
+			int shz = asint(pos.z) >> scale;
+			pos.x = asfloat(shx << scale);
+			pos.y = asfloat(shy << scale);
+			pos.z = asfloat(shz << scale);
+			idx = (shx & 1) | ((shy & 1) << 1) | ((shz & 1) << 2);
+
+			// Prevent same parent from being stored again and invalidate cached child descriptor.
+			h = 0.0f;
+			child_descriptor = 0;
+		}
+		
+	}
+
+
+	// Indicate miss if we are outside the octree.
+	if (scale >= s_max)
+		return;
+
+	//t_min *= SVO_SCALE_1;
+
+	// Undo mirroring of the coordinate system.
+	if ((octant_mask & 1) == 0) pos.x = 3.0f - scale_exp2 - pos.x;
+	if ((octant_mask & 2) == 0) pos.y = 3.0f - scale_exp2 - pos.y;
+	if ((octant_mask & 4) == 0) pos.z = 3.0f - scale_exp2 - pos.z;
+
+	// Output results.
+	bestHit.distance = t_min;
+	bestHit.position.x = min(max(ray.origin.x + t_min * ray.direction.x, pos.x + epsilon), pos.x + scale_exp2 - epsilon);
+	bestHit.position.y = min(max(ray.origin.y + t_min * ray.direction.y, pos.y + epsilon), pos.y + scale_exp2 - epsilon);
+	bestHit.position.z = min(max(ray.origin.z + t_min * ray.direction.z, pos.z + epsilon), pos.z + scale_exp2 - epsilon);
+	bestHit.normal = float3(0.7f, 0.7f, 0.7f); 
+	//hit_parent = parent;
+	//hit_idx = idx ˆ octant_mask ˆ 7;
+	//hit_scale = scale;
+
+
+	//if(t_min < bestHit.distance) {
+		// Undo mirroring of the coordinate system.
+		/*if ((octant_mask & 1) == 0) pos.x = 3.0f - scale_exp2 - pos.x;
+		if ((octant_mask & 2) == 0) pos.y = 3.0f - scale_exp2 - pos.y;
+		if ((octant_mask & 4) == 0) pos.z = 3.0f - scale_exp2 - pos.z;
+
+		// Output results.
+		bestHit.distance = t_min;
+		bestHit.position.x = min(max(ray.origin.x + t_min * ray.direction.x, pos.x + epsilon), pos.x + scale_exp2 - epsilon) * SVO_SCALE_1;
+		bestHit.position.y = min(max(ray.origin.y + t_min * ray.direction.y, pos.y + epsilon), pos.y + scale_exp2 - epsilon) * SVO_SCALE_1;
+		bestHit.position.z = min(max(ray.origin.z + t_min * ray.direction.z, pos.z + epsilon), pos.z + scale_exp2 - epsilon) * SVO_SCALE_1;
+	//}*/
+
+
+
+	//hit_parent = parent;
+	//hit_idx = idx ˆ octant_mask ˆ 7;
+	//hit_scale = scale;
+}

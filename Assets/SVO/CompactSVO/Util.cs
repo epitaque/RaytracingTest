@@ -48,7 +48,7 @@ public class ChildDescriptor {
 	public byte validMask;
 	public byte nonLeafMask;
 
-	public ChildDescriptor(uint code) {
+	public ChildDescriptor(int code) {
 		this.childPointer = (ushort)(code >> 16);
 		this.validMask = (byte)((code >> 8) & 255);
 		this.nonLeafMask = (byte)((code >> 0) & 255);
@@ -63,8 +63,8 @@ public class ChildDescriptor {
 	public bool Valid(int childNum) { return (validMask & (1 << childNum)) != 0; }
 	public bool Leaf(int childNum) { return (nonLeafMask & (1 << childNum)) == 0; }
 
-	public static uint ToCode(uint childPointer, uint validMask, uint nonLeafMask) {
-		return (uint)(childPointer | (validMask << 16) | (nonLeafMask << 24));
+	public static int ToCode(int childPointer, int validMask, int nonLeafMask) {
+		return (int)(childPointer | (validMask << 16) | (nonLeafMask << 24));
 	}
 
 	public override string ToString() {

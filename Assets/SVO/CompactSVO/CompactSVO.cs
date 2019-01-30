@@ -18,7 +18,7 @@ using RT.CS;
  */
 namespace RT {
 public class CompactSVO : SVO {
-    private List<uint> svo;
+    private List<int> svo;
 	private UtilFuncs.Sampler sample;
     private int maxLevel;
 
@@ -26,11 +26,11 @@ public class CompactSVO : SVO {
 	private CompactSVOTracer tracer;
 
 	public interface CompactSVOCreator {
-		List<uint> Create(UtilFuncs.Sampler sample, int maxLevel);
+		List<int> Create(UtilFuncs.Sampler sample, int maxLevel);
 	}
 	public interface CompactSVOTracer {
-		List<SVONode> Trace(Ray ray, List<uint> svo);
-		List<SVONode> GetAllNodes(List<uint> svo);
+		List<SVONode> Trace(Ray ray, List<int> svo);
+		List<SVONode> GetAllNodes(List<int> svo);
 	}
 
 	public CompactSVO(UtilFuncs.Sampler sample, int maxLevel) {

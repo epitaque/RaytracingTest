@@ -6,7 +6,7 @@ using RT.CS;
 
 namespace RT.CS {
 public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
-	private Node ExpandSVO(List<uint> svo, List<Node> svoNodes) {
+	private Node ExpandSVO(List<int> svo, List<Node> svoNodes) {
 		for(int i = 0; i < svo.Count; i++) {
 			svoNodes.Add(null);
 		}
@@ -19,7 +19,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	    child pointer | valid mask | nonleaf mask
             16			   8			8
 	 */
-	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<uint> svo, List<Node> svoNodes) { 
+	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<int> svo, List<Node> svoNodes) { 
 		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
  
 		node.Children = new Node[8];
@@ -50,7 +50,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		Ray Tracing methods
 		Returns a list of nodes that intersect a ray (in sorted order)
 	 */
-	public List<SVONode> Trace(UnityEngine.Ray ray, List<uint> svo) {
+	public List<SVONode> Trace(UnityEngine.Ray ray, List<int> svo) {
 		List<Node> allSvoNodes = new List<Node>();
 		ExpandSVO(svo, allSvoNodes);
 
@@ -71,7 +71,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		}
 	}
 
-	private void RayStep(List<uint> svo, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes, List<Node> allSvoNodes)  {
+	private void RayStep(List<int> svo, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes, List<Node> allSvoNodes)  {
 		//Debug.Log("Tracing svo hierarchy\n" + allSvoNodes[])
 		string debugStr = "";
 		debugStr += string.Join("\n", svo.ConvertAll(code => new ChildDescriptor(code)));
@@ -149,10 +149,10 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 			}
 			// Fetch child descriptor unless it is already valid.
 			if (child_descriptor == 0) {
-				child_descriptor = __uint_as_int(svo[parent]);
+				child_descriptor = svo[parent];
 			}
 
-			ChildDescriptor neatcd = new ChildDescriptor(__int_as_uint(child_descriptor));
+			ChildDescriptor neatcd = new ChildDescriptor(child_descriptor);
 
 			// Determine maximum t-value of the cube by evaluating
 			// tx(), ty(), and tz() at its corner.
@@ -294,7 +294,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		Debug Methods
 	 */
 
-	public List<SVONode> GetAllNodes(List<uint> svo) {
+	public List<SVONode> GetAllNodes(List<int> svo) {
 		List<Node> allNodes = new List<Node>();
 		List<SVONode> nodes = new List<SVONode>();
 		//ExpandSVO(svo, allNodes);
@@ -359,17 +359,17 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		return pos_f[0];
 	}
 
-	private static int __uint_as_int(uint x) {
-		uint[] pos_ui = new uint[1] { x };
+	private static int __int_as_int(int x) {
+		int[] pos_ui = new int[1] { x };
 		int[] pos_i = new int[1];
 
 		Buffer.BlockCopy(pos_ui, 0, pos_i, 0, 1 * 4);
 		return pos_i[0];
 	}
 
-	private static uint __int_as_uint(int x) {
+	private static int __uint_as_int(int x) {
 		int[] pos_i = new int[1] { x };
-		uint[] pos_ui = new uint[1];
+		int[] pos_ui = new int[1];
 
 		Buffer.BlockCopy(pos_i, 0, pos_ui, 0, 1 * 4);
 		return pos_ui[0];

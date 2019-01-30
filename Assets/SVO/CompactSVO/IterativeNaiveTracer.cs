@@ -6,7 +6,7 @@ using RT.CS;
 
 namespace RT.CS {
 public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
-	private Node ExpandSVO(List<uint> svo) {
+	private Node ExpandSVO(List<int> svo) {
 		Node root = new Node(new Vector3(1, 1, 1), 1, 1, false);
 		ExpandSVOAux(root, 0, 1, svo);
 		return root;
@@ -16,7 +16,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	    child pointer | valid mask | leaf mask
             16			   8			8
 	 */
-	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<uint> svo) { 
+	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<int> svo) { 
 		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
  
 		node.Children = new Node[8]; 
@@ -41,7 +41,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		Ray Tracing methods
 		Returns a list of nodes that intersect a ray (in sorted order)
 	 */
-	public List<SVONode> Trace(UnityEngine.Ray ray, List<uint> svo) {
+	public List<SVONode> Trace(UnityEngine.Ray ray, List<int> svo) {
 		List<Node> intersectedNodes = new List<Node>();
 		RayStep(ExpandSVO(svo), ray.origin, ray.direction, intersectedNodes);
 		return intersectedNodes.ConvertAll(node => (SVONode)node).ToList();
@@ -256,7 +256,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		Debug Methods
 	 */
 
-	public List<SVONode> GetAllNodes(List<uint> svo) {
+	public List<SVONode> GetAllNodes(List<int> svo) {
 		List<SVONode> nodes = new List<SVONode>();
 		testRoot = ExpandSVO(svo);
 		GetAllNodesAux(ExpandSVO(svo), nodes);

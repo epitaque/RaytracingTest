@@ -5,10 +5,10 @@ using UnityEngine;
 
 namespace RT.CS {
 public class NaiveCreator : CompactSVO.CompactSVOCreator {
-	public List<uint> Create(UtilFuncs.Sampler sample, int maxLevel) {
+	public List<int> Create(UtilFuncs.Sampler sample, int maxLevel) {
 		Node root = new Node(new Vector3(1, 1, 1), 1, 1, false);
 		BuildTree(root, 1, sample, maxLevel);
-		List<uint> nodes = CompressSVO(root);
+		List<int> nodes = CompressSVO(root);
 		return nodes;
 	}
 	/*
@@ -65,22 +65,22 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		return false;
 	}
 
-    private List<uint> CompressSVO(Node root) {
-        List<uint> compressedNodes = new List<uint>();
+    private List<int> CompressSVO(Node root) {
+        List<int> compressedNodes = new List<int>();
 		compressedNodes.Add(0);
         CompressSVOAux(root, 0, compressedNodes);
         return compressedNodes;
     } 
 
-    private void CompressSVOAux(Node node, int nodeIndex, List<uint> compressedNodes) {
+    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes) {
         if(node == null || node.Leaf) { return; }
 
-		uint childPointer = 0;
-        uint validMask = 0;
-        uint leafMask = 0;
+		int childPointer = 0;
+        int validMask = 0;
+        int leafMask = 0;
 
         for(int childNum = 0; childNum < 8; childNum++) { 
-            uint bit = (uint)1 << childNum;
+            int bit = (int)1 << childNum;
             if(node.Children[childNum] != null) {
                 validMask |= bit;
                 if(node.Children[childNum].Leaf) {
@@ -88,7 +88,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
                 }
 				else {
 					if(childPointer == 0) {
-						childPointer = (uint)compressedNodes.Count;
+						childPointer = (int)compressedNodes.Count;
 					}
 					compressedNodes.Add(0);
 				}
@@ -102,10 +102,10 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			}
 		}
 
-		uint nonLeafMask = leafMask ^ 255;
+		int nonLeafMask = leafMask ^ 255;
 		nonLeafMask &= validMask;
 
-        uint result = (childPointer << 16) | (validMask << 8) | ( (nonLeafMask) << 0);
+        int result = (childPointer << 16) | (validMask << 8) | ( (nonLeafMask) << 0);
 		compressedNodes[nodeIndex] = result;
     }
 
@@ -115,7 +115,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 	public static void TestSVOCompaction() {
 		NaiveCreator creator = new NaiveCreator();
-		List<uint> nodes = new List<uint>();
+		List<int> nodes = new List<int>();
 		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
 		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
 		nodes = creator.CompressSVO(root);
