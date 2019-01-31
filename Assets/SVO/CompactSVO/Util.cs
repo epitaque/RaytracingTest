@@ -3,22 +3,36 @@ using System;
 
 namespace RT.CS {
 public class Node : SVONode {
+	public Boolean ErrorNode;
+	public Node[] Children;
+	public Vector3 Normal;
+	public Color Color;
+
 	public Node(Vector3 position, float size, int level, bool leaf) {
 		Position = position;
 		Size = size;
 		Level = level;
 		Leaf = leaf;
 		ErrorNode = false;
+		Color = Color.red;
+		Normal = Vector3.up;
 	}
 
-	public Boolean ErrorNode;
-	public Node[] Children;
+	public Node(Vector3 position, float size, int level, bool leaf, Vector3 normal, Color color) {
+		Position = position;
+		Size = size;
+		Level = level;
+		Leaf = leaf;
+		ErrorNode = false;
+		Normal = normal;
+		Color = color;
+	}
 
 	public override ColoredBox GetColoredBox() {
 		ColoredBox box = new ColoredBox();
 		box.Center = GetCenter();
 		if(!ErrorNode) {
-			box.Color = UtilFuncs.SinColor(Level * 2f);
+			box.Color = Color; //UtilFuncs.SinColor(Level * 2f);
 		}
 		else {
 			box.Color = Color.red;

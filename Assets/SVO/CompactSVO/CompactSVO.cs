@@ -17,6 +17,17 @@ using RT.CS;
 
  */
 namespace RT {
+
+public class SVOData {
+	public List<int> childDescriptors;
+	// format: 
+	// 16 bits: color A RGB (5 6 5)
+	// 16 bits: color B RGB (5 6 5)
+	// 16 bits: node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
+	// 16 bits: parent normal
+	public List<int> attachments;
+}
+
 public class CompactSVO : SVO {
     private List<int> svo;
 	private UtilFuncs.Sampler sample;
@@ -25,8 +36,9 @@ public class CompactSVO : SVO {
 	private CompactSVOCreator creator;
 	private CompactSVOTracer tracer;
 
+
 	public interface CompactSVOCreator {
-		List<int> Create(UtilFuncs.Sampler sample, int maxLevel);
+		SVOData Create(UtilFuncs.Sampler sample, int maxLevel);
 	}
 	public interface CompactSVOTracer {
 		List<SVONode> Trace(Ray ray, List<int> svo);
@@ -55,7 +67,7 @@ public class CompactSVO : SVO {
 	}
 
 	public void BuildSVO() {
-		svo = creator.Create(sample, maxLevel);
+		svo = creator.Create(sample, maxLevel).childDescriptors;
 	}
 
     public List<SVONode> Trace(UnityEngine.Ray ray) {

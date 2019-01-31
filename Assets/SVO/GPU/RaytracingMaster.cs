@@ -87,7 +87,7 @@ public class RaytracingMaster : MonoBehaviour
 
 	private void SetSVOBuffer() {
 		RT.CS.NaiveCreator creator = new RT.CS.NaiveCreator();
-		List<int> svo = creator.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Simplex], 6);
+		List<int> svo = creator.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Simplex], 6).childDescriptors;
 		_svoBuffer = new ComputeBuffer(svo.Count, 4);
 
 		// Print SVO

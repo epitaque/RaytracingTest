@@ -5,11 +5,22 @@ using UnityEngine;
 
 namespace RT.CS {
 public class NaiveCreator : CompactSVO.CompactSVOCreator {
-	public List<int> Create(UtilFuncs.Sampler sample, int maxLevel) {
+
+
+	public SVOData Create(UtilFuncs.Sampler sample, int maxLevel) {
+		SVOData result = new SVOData();
 		Node root = new Node(new Vector3(1, 1, 1), 1, 1, false);
 		BuildTree(root, 1, sample, maxLevel);
-		List<int> nodes = CompressSVO(root);
-		return nodes;
+
+		List<int> nodes = new List<int>();
+		List<int> attachments = new List<int>();
+
+		CompressSVO(root, nodes, attachments);
+
+		result.childDescriptors = nodes;
+		result.attachments = attachments;
+
+		return result;
 	}
 	/*
 		Tree building methods
@@ -19,10 +30,29 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		Will return node if node contains surface.
 	 */
 	private Node BuildTree(Node node, int level, UtilFuncs.Sampler sample, int maxLevel) {
+		/*
+		
+		Grid[cx,cy,cz].Normal.X := (Grid[cx-1, cy, cz].Value-Grid[cx+1, cy, cz].Value)
+		Grid[cx,cy,cz].Normal.Y := (Grid[cx, cy-1, cz].Value-Grid[cx, cy+1, cz].Value)
+		Grid[cx,cy,cz].Normal.Z := (Grid[cx, cy, cz-1].Value-Grid[cx, cy, cz+1].Value)
+
+
+		 */
+
 		// Node is leaf. Determine if within surface. If so, return node.
 		if(node.Leaf) {
 			Vector3 p = node.Position + Vector3.one * (float)node.Size / 2;
 			if(sample(p.x, p.y, p.z) <= 0 && IsEdge(node, sample)) {
+				// Node is on an edge, calculate normal and color
+				Vector3 normal = Vector3.zero;
+				float h = 0.01f;
+				normal.x = sample(p.x - h, p.y, p.z) - sample(p.x, p.y, p.z);
+				normal.y = sample(p.x, p.y - h, p.z) - sample(p.x, p.y, p.z);
+				normal.z = sample(p.x, p.y, p.z - h) - sample(p.x, p.y, p.z);
+				normal = Vector3.Normalize(normal);
+				node.Normal = normal;
+				node.Color = new Color(normal.x, normal.y, normal.z, 1.0f);
+
 				return node;
 			}
 		}
@@ -38,6 +68,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			for(int i = 0; i < 8; i++) {
 				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level + 1, level + 1 == maxLevel);
 				node.Children[i] = BuildTree(child, level + 1, sample, maxLevel);
+
 				if(node.Children[i] != null) {
 					childExists = true;
 					if(node.Children[i].Leaf) {
@@ -47,6 +78,24 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			}
 
 			if(childExists) {
+				// Compute average color and normal
+				int numChildren = 0;
+				Vector3 color = Vector3.zero;
+				Vector3 normal = Vector3.zero;
+				for(int i = 0; i < 8; i++) {
+
+					if(node.Children[i] != null) {
+						numChildren++;
+						color.x += node.Children[i].Color.r;
+						normal.x += node.Children[i].Normal.x;
+					}
+				}
+
+				color = color * (1 / numChildren);
+				normal = normal * (1 / numChildren);
+
+				node.Color = new Color(color.x, color.y, color.z);
+				node.Normal = normal;
 				return node;
 			}
 		}
@@ -65,24 +114,28 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		return false;
 	}
 
-    private List<int> CompressSVO(Node root) {
-        List<int> compressedNodes = new List<int>();
+    private void CompressSVO(Node root, List<int> compressedNodes, List<int> attachments) {
 		compressedNodes.Add(0);
-        CompressSVOAux(root, 0, compressedNodes);
-        return compressedNodes;
+        CompressSVOAux(root, 0, compressedNodes, attachments);
     } 
 
-    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes) {
+    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes, List<int> attachments) {
         if(node == null || node.Leaf) { return; }
 
 		int childPointer = 0;
         int validMask = 0;
         int leafMask = 0;
 
+		int numHitChild = 0;
+
+		List<Color> childColors = new List<Color>();
+
         for(int childNum = 0; childNum < 8; childNum++) { 
             int bit = (int)1 << childNum;
+
             if(node.Children[childNum] != null) {
                 validMask |= bit;
+
                 if(node.Children[childNum].Leaf) {
                     leafMask |= bit;
                 }
@@ -98,19 +151,309 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		int childPointerClone = (int)childPointer;
 		for(int childNum = 0; childNum < 8; childNum++) {
 			if(node.Children[childNum] != null && !node.Children[childNum].Leaf) {
-				CompressSVOAux(node.Children[childNum], childPointerClone++, compressedNodes);
+				CompressSVOAux(node.Children[childNum], childPointerClone++, compressedNodes, attachments);
 			}
 		}
 
 		int nonLeafMask = leafMask ^ 255;
 		nonLeafMask &= validMask;
 
-        int result = (childPointer << 16) | (validMask << 8) | ( (nonLeafMask) << 0);
+        int result = (childPointer << 16) | (validMask << 8) | (nonLeafMask << 0);
+
 		compressedNodes[nodeIndex] = result;
     }
 
+	public static long GetAttachment(Node node) {
+		long attachment = 0;
+		int inodeAColor = 0; // 16 bits to encode node A color (5 6 5)
+		int inodeBColor = 0; // 16 bits to encode node B color (5 6 5)
+		int icolorChoices = 0; // 16 bits node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
+		int inormal = 0; // 1 bit sign, 2 bits axis, 7 bits u coordinate on unit cube, 6 bits v coordinate 
+
+		Vector3 normal = Vector3.zero;
+		Vector3 colorSum = Vector3.zero; 
+
+		Vector3 nodeAColor = Vector3.zero;
+		Vector3 nodeBColor = Vector3.zero;
+
+
+
+		int numChildren = 0;
+		float bdist = 0;
+
+		for(int i = 0; i < 8; i++) {
+			Node child = node.Children[i];
+			if(child == null) continue;
+			numChildren++;
+			normal += child.Normal;
+			Vector3 vColor = new Vector3(child.Color.r, child.Color.g, child.Color.b);
+			colorSum += vColor;
+
+			if(numChildren == 1) {
+				nodeAColor = vColor;
+			} else {
+				float dist = Vector3.Distance(nodeAColor, vColor);
+				if(dist > bdist) {
+					nodeBColor = vColor;
+				}
+			}
+		}
+
+		inodeAColor = CompressColor(nodeAColor);
+		inodeBColor = CompressColor(nodeBColor);
+		normal = Vector3.Normalize(normal * (1f / numChildren));
+		inormal = CompressNormal(normal);
+
+		Vector3[] candidateColors = new Vector3[] { nodeAColor, nodeBColor, .667f * nodeAColor + .333f * nodeBColor, .333f * nodeAColor + .667f * nodeBColor };
+
+		for(int i = 0; i < 8; i++) {
+			Node child = node.Children[i];
+			if(child == null) continue;
+			Vector3 vColor = new Vector3(child.Color.r, child.Color.g, child.Color.b);
+			float shortestDistance = 100;
+
+			for(int j = 0; j < 4; j++) {
+				float dist = Vector3.Distance(vColor, candidateColors[j]);
+				if(dist < shortestDistance) {
+					shortestDistance = dist;
+					icolorChoices |= j << (i * 2);
+				}
+
+			}
+
+		}
+
+		attachment = (long)inodeAColor | ((long)inodeBColor << 16) | ((long)icolorChoices << 32) | ((long)inormal << 48);
+
+		return attachment;
+	}
+
+
+	/*
+		Original Child Node colors and normals
+		C0 is null
+		C1 color: RGBA(0.900, 0.500, 0.300, 1.000), normal: (0.0, 1.0, 0.0)
+		C2 color: RGBA(0.300, 0.100, 0.200, 1.000), normal: (0.0, 1.0, 0.0)
+		C3 color: RGBA(0.100, 0.800, 0.400, 1.000), normal: (0.8, 0.8, 0.0)
+		C4 is null
+		C5 is null
+		C6 is null
+		C7 is null
+
+		Raw attachment: 1111111111111111111111111111111111100110111010110100110001111100
+		NodeAColor: 0100110001111100
+		NodeBColor: 1110011011101011
+		ColorChoices: 1111111111111111
+		Normal: 11111111111111111111111111111111
+
+		Partially Decompressed Attachment
+		NodeAColor: (0.9, 0.6, 0.3)
+		NodeBColor: (0.4, 0.9, 0.9)
+		ColorChoices: 1110011011101011
+		Normal: (0.0, 0.0, 0.0)
+
+		Actual colors of children
+		C0: (0.5, 0.8, 0.7)
+		C1: (0.9, 0.6, 0.3)
+		C2: (0.9, 0.6, 0.3)
+		C3: (0.9, 0.6, 0.3)
+		C4: (0.9, 0.6, 0.3)
+		C5: (0.9, 0.6, 0.3)
+		C6: (0.9, 0.6, 0.3)
+		C7: (0.9, 0.6, 0.3)
+
+*/
+
+	public static void TestDecompressAttachment() {
+		Node testNode = new Node(Vector3.zero, 1, 1, false, Vector3.up, Color.gray);
+		testNode.Children = new Node[] { null, 
+			new Node(Vector3.zero, 1, 1, false, new Vector3(0, 1, 0), new Color(0.9f, 0.5f, 0.3f)), 
+			new Node(Vector3.zero, 1, 1, false, new Vector3(0, 1, 0), new Color(0.3f, 0.1f, 0.2f)),
+			new Node(Vector3.zero, 1, 1, false, new Vector3(0.77f, 0.77f, 0), new Color(0.1f, 0.8f, 0.4f)),
+			null, null, null, null};
+
+		string output = "Original Child Node colors and normals\n";
+
+		for(int i = 0; i < 8; i++) {
+			Node n = testNode.Children[i];
+			if(n == null) {
+				output += "C" + i + " is null\n";
+			} else {
+				output += "C" + i + " color: " + n.Color + ", normal: " + n.Normal + "\n";
+			}
+		}
+
+		long attachment = GetAttachment(testNode);
+		int inodeAColor = (int)(attachment & 65535); // 16 bits to encode node A color (5 6 5)
+		int inodeBColor = (int)((attachment >> 16) & 65535); // 16 bits to encode node B color (5 6 5)
+		int icolorChoices = (int)((attachment >> 32) & 65535); // 16 bits node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
+		int inormal = (int)((attachment >> 48)); // 1 bit sign, 2 bits axis, 7 bits u coordinate on unit cube, 6 bits v coordinate
+
+		output += "\nRaw attachment: " + Convert.ToString(attachment, 2).PadLeft(64, '0') + "\n";
+		output += "NodeAColor: " + Convert.ToString(inodeAColor, 2).PadLeft(16, '0') + "\n";
+		output += "NodeBColor: " + Convert.ToString(inodeBColor, 2).PadLeft(16, '0') + "\n";
+		output += "ColorChoices: " + Convert.ToString(icolorChoices, 2).PadLeft(16, '0') + "\n";
+		output += "Normal: " + Convert.ToString(inormal, 2).PadLeft(16, '0') + "\n\n";
+
+		Vector3 nodeAColor = DecompressColor(inodeAColor);
+		Vector3 nodeBColor = DecompressColor(inodeBColor);
+
+		output += "Partially Decompressed Attachment\n";
+		output += "NodeAColor: " + DecompressColor(inodeAColor) + "\n";
+		output += "NodeBColor: " + DecompressColor(inodeBColor) + "\n";
+		output += "ColorChoices: " + Convert.ToString(icolorChoices, 2).PadLeft(16, '0') + "\n";
+		output += "Normal: " + DecompressNormal(inormal) + "\n\n";
+
+		Vector3[] candidateColors = new Vector3[] { nodeAColor, nodeBColor, .667f * nodeAColor + .333f * nodeBColor, .333f * nodeAColor + .667f * nodeBColor };
+
+		output += "Actual colors of children\n";
+		for(int i = 0; i < 8; i++) {
+			int choice = (icolorChoices >> (i * 2)) & 3;
+			Vector3 color = candidateColors[choice];
+			output += "C" + i + ": choice: " + choice + ", color: " + color + "\n";
+		}
+
+		Debug.Log(output);
+	}
+
+	/*
+		Color and Normal Compression Utility Functions
+	 */
+	// compress a color to 16 bits (R5 G6 B5)
+	public static int CompressColor(Vector3 c) {
+		int color = (int)(32 * (c.x - Mathf.Epsilon));
+		color |= (int)(64 * (c.y - Mathf.Epsilon)) << 5;
+		color |= (int)(32 * (c.z -  - Mathf.Epsilon)) << 11;
+		return color;
+	}
+	public static Vector3 DecompressColor(int color) {
+		float r = (color & 31) * (32f/31f);
+		float g = ((color >> 5) & 63) * (64f/63f);
+		float b = (color >> 11) *(32f/31f);
+		return new Vector3(r / 32f, g / 64f, b / 32f);
+	}
+
+	public static float ColorDistance(Color a, Color b) {
+		Vector3 pA = new Vector3(a.r, a.g, a.b);
+		Vector3 pB = new Vector3(b.r, b.g, b.b);
+		return Vector3.Distance(pA, pB);
+	}
+
+	// compress a normal to 16 bits
+	// 1 bit: sign
+	// 2 bits: axis
+	// 00 x
+	// 01 y
+	// 10 z
+	// 7 bits: u coord
+	// 6 bits: v coord
+
+	public static int CompressNormal(Vector3 n) {  
+		int compressed = 0;
+		int axis = 0;
+		int sign = 0;
+		float fsign = 0;
+
+		n.x += 0.0000001f; 
+		n.y += 0.0000007f;
+
+		// pos = n * t
+		// pos.x = 1
+		// 1 = n.x * t
+		// 1 / n.x = t
+
+		float t = 0;
+		float u = 0;
+		float v = 0;
+
+		float anx = Mathf.Abs(n.x);
+		float any = Mathf.Abs(n.y);
+		float anz = Mathf.Abs(n.z);
+
+		if(anz < anx && any < anx) { // exit plane YZ axisv x
+			compressed |= 0; 
+			fsign = n.x;
+			t = 1 / anx;
+			u = (n * t).y; 
+			v = (n * t).z;
+		}
+		else if(anx < any && anz < any) { // exit plane XZ axisv y
+			axis |= 1;
+			fsign = n.y;
+			t = 1 / any;
+			u = (n * t).x;
+			v = (n * t).z;
+		}
+		else if(anx < anz && any < anz) { // exit plane XY axisv z (can remove conditional, only plane left)
+			axis |= 2;
+			fsign = n.z;
+			t = 1 / anz; 
+			u = (n * t).x;
+			v = (n * t).y;
+		}
+
+		if(fsign > 0) {
+			sign |= 1;
+		}
+
+		u += 1;
+		v += 1;
+
+		int iu = (int)((u - Mathf.Epsilon) * 64); // 7 bit precision
+		int iv = (int)((v - Mathf.Epsilon) * 32); // 6 bit precision
+
+		compressed = sign | (axis << 1) | (iu << 3) | (iv << 10);
+
+		return compressed; 
+	}
+
+	public static Vector3 DecompressNormal(int compressedNormal) { 
+		Vector3 normal = Vector3.zero;
+		Vector3 unitCubePoint = Vector3.zero;
+		int sign = compressedNormal & 1;
+		int axis = (compressedNormal >> 1) & 3;
+		int u = (compressedNormal >> 3) & 127;
+		int v = (compressedNormal >> 10) & 63;
+
+		float signMultiplier = ((float)sign - 0.5f) * 2;
+
+		if(axis == 0) { // x axis
+			unitCubePoint.x = signMultiplier;
+			unitCubePoint.y = ((float)u - 64f) / 64f + (1f / 128f);
+			unitCubePoint.z = ((float)v - 32f) / 32f + (1f / 64f); 
+		}
+
+		if(axis == 1) { // y axis
+			unitCubePoint.y = signMultiplier;
+			unitCubePoint.x = ((float)u - 64f) / 64f + (1f / 128f);
+			unitCubePoint.z = ((float)v - 32f) / 32f + (1f / 64f); 
+		}
+
+		if(axis == 2) { // z axis
+			unitCubePoint.z = signMultiplier;
+			unitCubePoint.x = ((float)u - 64f) / 64f + (1f / 128f);
+			unitCubePoint.y = ((float)v - 32f) / 32f + (1f / 64f); 
+		}
+		normal = Vector3.Normalize(unitCubePoint);
+		return normal;
+	}
+
 	static NaiveCreator() {
 		//TestSVOCompaction();
+		//TestNormalCompaction();
+		TestDecompressAttachment();
+	}
+
+	public static void TestNormalCompaction() {
+		Vector3 norm = new Vector3(-35, -35, 356);
+		norm = Vector3.Normalize(norm);
+		int compressed = CompressNormal(norm);
+
+		string output = "Original Normal: " + norm.ToString("F4") + "\n";
+		output += "Compressed Normal: " + Convert.ToString(compressed, 2).PadLeft(16, '0') + "\n";
+		Vector3 decompressed = DecompressNormal(compressed);
+		output += "Decompressed Normal: " + decompressed.ToString("F4");
+		Debug.Log(output);
 	}
 
 	public static void TestSVOCompaction() {
@@ -118,7 +461,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		List<int> nodes = new List<int>();
 		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
 		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
-		nodes = creator.CompressSVO(root);
+		//nodes = creator.CompressSVO(root);
 		string output = "NaiveCreator SVO Compaction Test\n";
 		output += "Original Hierarchy:\n" + root.StringifyHierarchy() + "\n\n";
 		output += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code)));
