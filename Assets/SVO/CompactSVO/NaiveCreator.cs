@@ -13,7 +13,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		BuildTree(root, 1, sample, maxLevel);
 
 		List<int> nodes = new List<int>();
-		List<int> attachments = new List<int>();
+		List<uint> attachments = new List<uint>();
 
 		CompressSVO(root, nodes, attachments);
 
@@ -45,13 +45,14 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			if(sample(p.x, p.y, p.z) <= 0 && IsEdge(node, sample)) {
 				// Node is on an edge, calculate normal and color
 				Vector3 normal = Vector3.zero;
-				float h = 0.01f;
+				float h = 0.001f;
 				normal.x = sample(p.x - h, p.y, p.z) - sample(p.x, p.y, p.z);
 				normal.y = sample(p.x, p.y - h, p.z) - sample(p.x, p.y, p.z);
 				normal.z = sample(p.x, p.y, p.z - h) - sample(p.x, p.y, p.z);
 				normal = Vector3.Normalize(normal);
 				node.Normal = normal;
-				node.Color = new Color(normal.x, normal.y, normal.z, 1.0f);
+				node.Color = new Color(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z), 1.0f);
+				//node.Color = new Color(node.Position.x - 1, node.Position.y - 1, node.Position.z - 1, 1.0f);
 
 				return node;
 			}
@@ -114,12 +115,13 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		return false;
 	}
 
-    private void CompressSVO(Node root, List<int> compressedNodes, List<int> attachments) {
+    private void CompressSVO(Node root, List<int> compressedNodes, List<uint> attachments) {
 		compressedNodes.Add(0);
+		attachments.Add(0); attachments.Add(0);
         CompressSVOAux(root, 0, compressedNodes, attachments);
     } 
 
-    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes, List<int> attachments) {
+    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes, List<uint> attachments) {
         if(node == null || node.Leaf) { return; }
 
 		int childPointer = 0;
@@ -143,7 +145,8 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 					if(childPointer == 0) {
 						childPointer = (int)compressedNodes.Count;
 					}
-					compressedNodes.Add(0);
+					compressedNodes.Add(0); 
+					attachments.Add(0); attachments.Add(0);
 				}
             }
         }
@@ -160,6 +163,9 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
         int result = (childPointer << 16) | (validMask << 8) | (nonLeafMask << 0);
 
+		long attachment = GetAttachment(node);
+		attachments[nodeIndex * 2] = ((uint)attachment);
+		attachments[nodeIndex * 2 + 1] = ((uint)(attachment >> 32));
 		compressedNodes[nodeIndex] = result;
     }
 
@@ -211,15 +217,17 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			if(child == null) continue;
 			Vector3 vColor = new Vector3(child.Color.r, child.Color.g, child.Color.b);
 			float shortestDistance = 100;
+			int choice = 0;
 
 			for(int j = 0; j < 4; j++) {
 				float dist = Vector3.Distance(vColor, candidateColors[j]);
 				if(dist < shortestDistance) {
 					shortestDistance = dist;
-					icolorChoices |= j << (i * 2);
+					choice = j;
 				}
 
 			}
+			icolorChoices |= choice << (i * 2);
 
 		}
 
@@ -309,7 +317,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		output += "Actual colors of children\n";
 		for(int i = 0; i < 8; i++) {
 			int choice = (icolorChoices >> (i * 2)) & 3;
-			Vector3 color = candidateColors[choice];
+			Vector3 color = decodeDXTColor((uint)inodeAColor | ((uint)inodeBColor << 16), ((uint)icolorChoices), i); //candidateColors[choice];
 			output += "C" + i + ": choice: " + choice + ", color: " + color + "\n";
 		}
 
@@ -321,17 +329,42 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 	 */
 	// compress a color to 16 bits (R5 G6 B5)
 	public static int CompressColor(Vector3 c) {
-		int color = (int)(32 * (c.x - Mathf.Epsilon));
-		color |= (int)(64 * (c.y - Mathf.Epsilon)) << 5;
-		color |= (int)(32 * (c.z -  - Mathf.Epsilon)) << 11;
+		int color = (int)(32 * (c.x - 0.00001f));
+		color |= (int)(64 * (c.y - 0.00001f)) << 5;
+		color |= (int)(32 * (c.z - 0.00001f)) << 11;
 		return color;
 	}
 	public static Vector3 DecompressColor(int color) {
-		float r = (color & 31) * (32f/31f);
-		float g = ((color >> 5) & 63) * (64f/63f);
-		float b = (color >> 11) *(32f/31f);
-		return new Vector3(r / 32f, g / 64f, b / 32f);
+		float r = (color & 31);
+		float g = ((color >> 5) & 63);
+		float b = (color >> 11);
+		return new Vector3(r / 31f, g / 63f, b / 31f);
 	}
+
+	// nvidias color decompression functions test
+	private static float[] c_dxtColorCoefs =
+	{
+		1.0f / (float)(1 << 24),
+		0.0f,
+		2.0f / (float)(3 << 24),
+		1.0f / (float)(3 << 24),
+	};
+ 
+	private static Vector3 decodeDXTColor(uint block1, uint block2, int texelIdx)
+	{
+		uint head = block1;
+		uint bits = block2;
+
+		float c0 = c_dxtColorCoefs[(bits >> (texelIdx * 2)) & 3];
+		float c1 = 1.0f / (float)(1 << 24) - c0;
+
+		return new Vector3(
+			c0 * (float)(head << 27) + c1 * (float)(head << 11),
+			c0 * (float)(head << 21) + c1 * (float)(head << 5),
+			c0 * (float)(head << 16) + c1 * (float)head) * (1f/256f);
+	}
+
+
 
 	public static float ColorDistance(Color a, Color b) {
 		Vector3 pA = new Vector3(a.r, a.g, a.b);
@@ -436,6 +469,21 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		}
 		normal = Vector3.Normalize(unitCubePoint);
 		return normal;
+	}
+
+	float3 decodeRawNormal(int value)
+	{
+		int sign = (int)value >> 15;
+		F32 t = (F32)(sign ^ 0x7fffffff);
+		F32 u = (F32)((S32)value << 3);
+		F32 v = (F32)((S32)value << 18);
+
+		float3 result = { t, u, v };
+		if ((value & 0x20000000) != 0)
+			result.x = v, result.y = t, result.z = u;
+		else if ((value & 0x40000000) != 0)
+			result.x = u, result.y = v, result.z = t;
+		return result;
 	}
 
 	static NaiveCreator() {

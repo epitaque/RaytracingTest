@@ -25,7 +25,12 @@ public class SVOData {
 	// 16 bits: color B RGB (5 6 5)
 	// 16 bits: node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
 	// 16 bits: parent normal
-	public List<int> attachments;
+	public List<uint> attachments;
+
+	public override string ToString() {
+		return "";
+		//return "[ColoredBox, Center: " + Center.ToString("F4") + ", Size: " + Size.ToString("F4") + "]";
+	}
 }
 
 public class CompactSVO : SVO {

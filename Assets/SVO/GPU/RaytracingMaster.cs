@@ -12,6 +12,7 @@ public class RaytracingMaster : MonoBehaviour
 	private Camera _camera;
 	private uint _currentSample = 0;
 	private ComputeBuffer _svoBuffer;
+	private ComputeBuffer _svoAttachmentsBuffer;
 
 	private void Awake()
 	{
@@ -33,6 +34,9 @@ public class RaytracingMaster : MonoBehaviour
 		Vector3 l = DirectionalLight.transform.forward;
 		RayTracingShader.SetVector("_DirectionalLight", new Vector4(l.x, l.y, l.z, DirectionalLight.intensity));
 		RayTracingShader.SetBuffer(0, "_SVO", _svoBuffer);
+		RayTracingShader.SetBuffer(0, "_SVOAttachments", _svoAttachmentsBuffer);
+
+		
 	}
 
 	private void Update() {
@@ -87,14 +91,16 @@ public class RaytracingMaster : MonoBehaviour
 
 	private void SetSVOBuffer() {
 		RT.CS.NaiveCreator creator = new RT.CS.NaiveCreator();
-		List<int> svo = creator.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Simplex], 6).childDescriptors;
-		_svoBuffer = new ComputeBuffer(svo.Count, 4);
+		RT.SVOData data = creator.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Simplex], 7);
+		_svoBuffer = new ComputeBuffer(data.childDescriptors.Count, 4);
+		_svoAttachmentsBuffer = new ComputeBuffer(data.attachments.Count, 4);
 
 		// Print SVO
 		string output = "Raytracing SVO Results\n";
-		output += "Compressed:\n" + string.Join("\n", svo.ConvertAll(code => new RT.CS.ChildDescriptor(code)));
+		output += "Compressed:\n" + string.Join("\n", data.childDescriptors.ConvertAll(code => new RT.CS.ChildDescriptor(code)));
 		Debug.Log(output);
 
-		_svoBuffer.SetData(svo);
+		_svoBuffer.SetData(data.childDescriptors);
+		_svoAttachmentsBuffer.SetData(data.attachments);
 	}
 } 

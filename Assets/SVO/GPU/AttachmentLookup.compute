@@ -1,0 +1,18 @@
+static const float c_dxtColorCoefs[4] =
+{
+    1.0f / (float)(1 << 24),
+    0.0f,
+    2.0f / (float)(3 << 24),
+    1.0f / (float)(3 << 24),
+};
+
+float3 decodeDXTColor(uint head, uint bits, int texelIdx)
+{
+    float c0 = c_dxtColorCoefs[(bits >> (texelIdx * 2)) & 3];
+    float c1 = 1.0f / (float)(1 << 24) - c0;
+
+    return float3(
+		c0 * (float)(head << 27) + c1 * (float)(head << 11),
+		c0 * (float)(head << 21) + c1 * (float)(head << 5),
+        c0 * (float)(head << 16) + c1 * (float)head) * (1.0f/256.0f);
+}
