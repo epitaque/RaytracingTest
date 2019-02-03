@@ -404,7 +404,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		float anz = Mathf.Abs(n.z);
 
 		if(anz < anx && any < anx) { // exit plane YZ axisv x
-			compressed |= 0; 
+			axis |= 0; 
 			fsign = n.x;
 			t = 1 / anx;
 			u = (n * t).y; 
@@ -435,7 +435,8 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		int iu = (int)((u - Mathf.Epsilon) * 64); // 7 bit precision
 		int iv = (int)((v - Mathf.Epsilon) * 32); // 6 bit precision
 
-		compressed = sign | (axis << 1) | (iu << 3) | (iv << 10);
+		//           1 bit sign    2 bits axis    7 bits u    6 bits v
+		compressed = (sign << 15) | (axis << 13) | (iu << 6) | (iv);
 
 		return compressed; 
 	}
@@ -471,25 +472,138 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		return normal;
 	}
 
-	float3 decodeRawNormal(int value)
+	private static uint encodeRawNormal32(Vector3 normal)
 	{
-		int sign = (int)value >> 15;
-		F32 t = (F32)(sign ^ 0x7fffffff);
-		F32 u = (F32)((S32)value << 3);
-		F32 v = (F32)((S32)value << 18);
+		Vector3 a = new Vector3(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z));
+		uint axis = (a.x >= Mathf.Max(a.y, a.z)) ? 0 : (a.y >= a.z) ? 1u : 2u;
 
-		float3 result = { t, u, v };
-		if ((value & 0x20000000) != 0)
-			result.x = v, result.y = t, result.z = u;
-		else if ((value & 0x40000000) != 0)
-			result.x = u, result.y = v, result.z = t;
+		Vector3 tuv;
+		switch (axis)
+		{
+			case 0:  tuv = normal; break;
+			case 1:  tuv = new Vector3(normal.y, normal.z, normal.x); break;
+			default: tuv = new Vector3(normal.z, normal.x, normal.y); break;
+		}
+
+		uint signbit = ((tuv.x >= 0.0f) ? 0u : ((uint)0x80000000)); // set 32nd bit to 1
+		uint axisbit = (axis << 29); // set 31st and 30th bits to axis bits
+
+
+		float v1 = (tuv.y / Mathf.Abs(tuv.x)) * 16383.0f;
+
+		uint first = ((uint)(Mathf.Clamp(v1 * 16383.0f, -0x4000, 0x3FFF)) & 0x7FFF);
+		uint u = __int_as_uint(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 16383.0f), -0x4000, 0x3FFF) & 0x7FFF) << 14);
+		uint v = __int_as_uint(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 8191.0f),   -0x2000, 0x1FFF) & 0x3FFF));
+
+		return
+			signbit |
+			axisbit |
+			u |
+			v;
+	}
+
+	private static Vector3 decodeRawNormal32(uint value)
+	{
+		int sign = (int)(value >> 31);
+		float t = (float)(sign ^ 0x7fffffff);
+		float u = (float)((int)value << 3);
+		float v = (float)((int)value << 18);
+
+		Vector3 result = new Vector3(t, u, v);
+		if ((value & 0x20000000) != 0) {
+			result.x = v; result.y = t; result.z = u;
+		}
+		else if ((value & 0x40000000) != 0) {
+			result.x = u; result.y = v; result.z = t;
+		}
+		return result;
+	}
+
+	private static ushort encodeRawNormal16(Vector3 normal)
+	{
+		Vector3 a = new Vector3(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z));
+		ushort axis = (ushort) ((a.x >= Mathf.Max(a.y, a.z)) ? 0 : (a.y >= a.z) ? 1 : 2);
+
+		Vector3 tuv;
+		switch (axis)
+		{
+			case 0:  tuv = normal; break;
+			case 1:  tuv = new Vector3(normal.y, normal.z, normal.x); break;
+			default: tuv = new Vector3(normal.z, normal.x, normal.y); break;
+		}
+
+		ushort signbit = (ushort)((tuv.x >= 0.0f) ? 0 : (0x8000)); // set 16th bit to 1
+		ushort axisbit = (ushort)(axis << 13); // set 15th and 14th bits to axis bits
+
+		// before: u 15 v 14
+		// 16383 = 2^14 - 1
+		// -0x4000 = -0b100000000000000 (1 followed by 14 zeroes)
+		// 0x3FFF = 0b11111111111111 (14 1s)
+		// 0x7FFF = 0b111111111111111 (15 1s)
+
+		// u is 7 bits
+		// 63 = 2^6 - 1
+		// -0x40 = -0b1000000 (1 followed by 6 zeroes)
+		// 0x3F = 0b111111 (6 1s)
+		// 0x7F = 0b1111111 (7 1s)
+
+		// v is 6 bits
+		// 31 = 2^5 - 1
+		// -0x20 = -0b100000 (1 followed by 5 zeroes)
+		// 0x1F = 0b11111 (5 1s)
+		// 0x3F = 0b111111 (6 1s)
+
+		//ushort u = (ushort)(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 63.0f), -0x40, 0x1F) & 0x3F) << 6);
+		//ushort v = (ushort)(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 31.0f), -0x20, 0xF) & 0x1F));
+		// uint u = __int_as_uint(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 16383.0f), -0x4000, 0x3FFF) & 0x7FFF) << 14);
+		// uint v = __int_as_uint(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 8191.0f),   -0x2000, 0x1FFF) & 0x3FFF));
+
+		
+		uint u = (ushort)__int_as_uint(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 63.0f), -0x40, 0x3F) & 0x7F) << 6);
+		uint v = (ushort)__int_as_uint(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 31.0f), -0x20, 0x1F) & 0x3F));
+
+		return (ushort)(
+			signbit |
+			axisbit |
+			u |
+			v);
+	}
+
+	private static Vector3 decodeRawNormal16(ushort value)
+	{
+		int sign = (value >> 15);
+		float t = (float)(sign ^ 0x7fff);
+		float u = (float)((ushort)(value << 3));
+		float v = (float)((ushort)(value << 10));
+
+		Vector3 result = new Vector3(t, u, v);
+		if ((value & 0x2000) != 0) {
+			result.x = v; result.y = t; result.z = u;
+		}
+		else if ((value & 0x4000) != 0) {
+			result.x = u; result.y = v; result.z = t;
+		}
 		return result;
 	}
 
 	static NaiveCreator() {
 		//TestSVOCompaction();
 		//TestNormalCompaction();
-		TestDecompressAttachment();
+		//TestDecompressAttachment();
+		TestNVIDIANormalCompression();
+	}
+
+	public static void TestNVIDIANormalCompression() {
+		Vector3 rawNormal = Vector3.Normalize(new Vector3(5, 4, 3));
+		ushort compressedNormal = encodeRawNormal16(rawNormal);
+		Vector3 decompressedNormal = Vector3.Normalize(decodeRawNormal16(compressedNormal));
+
+		string output = "Normal Compression Test\n";
+		output += "Raw Normal: " + rawNormal.ToString("F4") + "\n";
+		output += "Compressed Normal: " + Convert.ToString(compressedNormal, 2).PadLeft(32, '0') + "\n";
+		output += "Decompressed Normal: " + decompressedNormal.ToString("F4") + "\n";
+		Debug.Log(output);
+
 	}
 
 	public static void TestNormalCompaction() {
@@ -515,5 +629,30 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		output += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code)));
 		Debug.Log(output);
 	}
+
+	private static int __uint_as_int(uint x) {
+		uint[] pos_ui = new uint[1] { x };
+		int[] pos_i = new int[1];
+
+		Buffer.BlockCopy(pos_ui, 0, pos_i, 0, 1 * 4);
+		return pos_i[0];
+	}
+
+	private static uint __int_as_uint(int x) {
+		int[] pos_i = new int[1] { x };
+		uint[] pos_ui = new uint[1];
+
+		Buffer.BlockCopy(pos_i, 0, pos_ui, 0, 1 * 4);
+		return pos_ui[0];
+	}
+	private static ushort __int_as_ushort(int x) {
+		int[] pos_i = new int[1] { x };
+		ushort[] pos_us = new ushort[1];
+
+		Buffer.BlockCopy(pos_i, 0, pos_us, 0, 1 * 2);
+		return pos_us[0];
+	}
+
+
 }
 }

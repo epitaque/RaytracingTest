@@ -359,17 +359,17 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		return pos_f[0];
 	}
 
-	private static int __int_as_int(int x) {
-		int[] pos_ui = new int[1] { x };
+	private static int __uint_as_int(uint x) {
+		uint[] pos_ui = new uint[1] { x };
 		int[] pos_i = new int[1];
 
 		Buffer.BlockCopy(pos_ui, 0, pos_i, 0, 1 * 4);
 		return pos_i[0];
 	}
 
-	private static int __uint_as_int(int x) {
+	private static uint __int_as_uint(int x) {
 		int[] pos_i = new int[1] { x };
-		int[] pos_ui = new int[1];
+		uint[] pos_ui = new uint[1];
 
 		Buffer.BlockCopy(pos_i, 0, pos_ui, 0, 1 * 4);
 		return pos_ui[0];
