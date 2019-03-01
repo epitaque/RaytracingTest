@@ -16,3 +16,46 @@ float3 decodeDXTColor(uint head, uint bits, int texelIdx)
 		c0 * (float)(head << 21) + c1 * (float)(head << 5),
         c0 * (float)(head << 16) + c1 * (float)head) * (1.0f/256.0f);
 }
+
+float3 decodeRNormal(int value)
+{
+	int sign = ((value << 16) >> 31);
+	float t = (float)(sign ^ 0x7fff);
+	float u = (float)((value << (3 + 16)) >> 16); 
+	float v = (float)((value << (10 + 16)) >> 16);
+
+	float3 result = float3(t, u, v);
+	if ((value & 0x2000) != 0) {
+		result.x = v; result.y = t; result.z = u;
+	}
+	else if ((value & 0x4000) != 0) {
+		result.x = u; result.y = v; result.z = t;
+	}
+	return result;
+}
+
+float3 decodeNormal(uint value) 
+{
+	//int sign = -1;
+	/*if(value & 0x8000 != 0) { 
+		sign = -1;
+	}*/
+   // int sign = (int)(value << 16) >> 31;
+    float t = 32767; //(float)(sign ^ 0x7fff);
+
+	if( (value & 0x8000) != 0) { 
+		t = -32768;
+	}
+
+    float u = (float)((int)value << (3 + 16) >> 16);
+    float v = (float)((int)value << (10 + 16) >> 16);
+
+    float3 result = float3(t, u, v);
+    if ((value & 0x2000) != 0) {
+        result.x = v; result.y = t; result.z = u;
+	}
+    else if ((value & 0x4000) != 0) {
+        result.x = u; result.y = v; result.z = t;
+	}
+    return result;
+}

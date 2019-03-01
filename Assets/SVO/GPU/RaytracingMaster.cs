@@ -14,6 +14,10 @@ public class RaytracingMaster : MonoBehaviour
 	private ComputeBuffer _svoBuffer;
 	private ComputeBuffer _svoAttachmentsBuffer;
 
+	[Range(1, 8)]
+	public int maxLevel = 5;
+	public SampleFunctions.Type sampleType = SampleFunctions.Type.Custom1;
+
 	private void Awake()
 	{
 		Application.targetFrameRate = 10000;
@@ -46,6 +50,10 @@ public class RaytracingMaster : MonoBehaviour
 			transform.hasChanged = false;
 		}
 
+		// Rebuild SVO command
+		if(UnityEngine.Input.GetKeyDown(KeyCode.R)) {
+			SetSVOBuffer();
+		}
 	}
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
@@ -90,15 +98,21 @@ public class RaytracingMaster : MonoBehaviour
     }
 
 	private void SetSVOBuffer() {
+		Debug.Log("Setting svo buffer...");
+
 		RT.CS.NaiveCreator creator = new RT.CS.NaiveCreator();
-		RT.SVOData data = creator.Create(SampleFunctions.functions[(int)SampleFunctions.Type.Simplex], 7);
+		RT.SVOData data = creator.Create(SampleFunctions.functions[(int)sampleType], maxLevel);
 		_svoBuffer = new ComputeBuffer(data.childDescriptors.Count, 4);
 		_svoAttachmentsBuffer = new ComputeBuffer(data.attachments.Count, 4);
 
 		// Print SVO
-		string output = "Raytracing SVO Results\n";
-		output += "Compressed:\n" + string.Join("\n", data.childDescriptors.ConvertAll(code => new RT.CS.ChildDescriptor(code)));
-		Debug.Log(output);
+		/* string output = "Raytracing SVO Results\n";
+		for(int i = 0; i < data.childDescriptors.Count; i++) {
+			int normal = (int)(data.attachments[i*2 + 1] >> 16);
+			output += "CD: " + new RT.CS.ChildDescriptor(data.childDescriptors[i]) + "\n"; //, Normal: v" + Vector3.Normalize(RT.CS.NaiveCreator.decodeRawNormal16(normal)) + System.Convert.ToString(normal, 2).PadLeft(16, '0') + "(" + normal + ")\n";
+		}
+
+		GUIUtility.systemCopyBuffer = output;*/
 
 		_svoBuffer.SetData(data.childDescriptors);
 		_svoAttachmentsBuffer.SetData(data.attachments);

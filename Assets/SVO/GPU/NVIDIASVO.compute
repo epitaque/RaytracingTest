@@ -101,9 +101,9 @@ void IntersectSVO(Ray ray, inout RayHit bestHit) {
 				// Find child descriptor corresponding to the current voxel.
 				int ofs = (unsigned int)child_descriptor >> 16; // child pointer
 				//if ((child_descriptor & 0x10000) != 0) // far
-				//ofs = parent[ofs * 2]; // far pointer
+					//ofs = parent[ofs * 2]; // far pointer
 				ofs += countbits(child_masks & 0x7F);
-				parent = ofs;
+				parent += ofs;
 				// Select child voxel that the ray enters first.
 				idx = 0;
 				scale--;
@@ -178,14 +178,22 @@ void IntersectSVO(Ray ray, inout RayHit bestHit) {
 	uint blockA = _SVOAttachments[parent*2];
 	uint blockB = _SVOAttachments[parent*2 + 1];
 
+	float3 normal = normalize(decodeNormal(blockB >> 16));
+
+	bestHit.normal = normal;
+	//bestHit.normal = normal;
+	// bestHit.albedo = //-1 * float3(clamp(normal.x, -1, 0), clamp(normal.y, -1, 0), clamp(normal.z, -1, 0)); 
+	//bestHit.albedo = //float3(abs(normal.x), abs(normal.y), abs(normal.z));
+	bestHit.albedo = decodeDXTColor(blockA, blockB, hit_idx);
+
 	//bestHit.albedo = float3(pos.x - 1, pos.y - 1, pos.z - 1); 
-	bestHit.normal = float3(0, 1, 0);
-	bestHit.albedo = decodeDXTColor(blockA, blockB, hit_idx);//float3(pos.x - 1, pos.y - 1, pos.z - 1); 
+	//bestHit.normal = float3(0, 1, 0); // //float3(1, 0, 0);
+	//float3 normal = decodeNormal(blockB >> 16);
+//	bestHit.albedo = normalize(float3(abs(normal.x), abs(normal.y), abs(normal.z))); //float3(bestHit.normal.z, bestHit.normal.z, bestHit.normal.z);//decodeDXTColor(blockA, blockB, hit_idx);//float3(pos.x - 1, pos.y - 1, pos.z - 1); 
+	
+	//float3(pos.x - 1, pos.y - 1, pos.z - 1); 
+
 	//hit_parent = parent;
 	//hit_idx = idx ^ octant_mask ^ 7;
 	//hit_scale = scale;
-}
-
-float3 decompressNormal(int normal) {
-
 }

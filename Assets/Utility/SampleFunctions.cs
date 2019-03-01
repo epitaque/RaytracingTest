@@ -35,6 +35,15 @@ public static class SampleFunctions {
 			Vector3 p = new Vector3((x-1.5f)*2f, (y-1.5f)*2f, (z-1.5f)*2f);
 			return RotatedCuboid(p, 0.6f);
 		};
+		// Simplex Terrain
+		functions[4] = (float x, float y, float z) => {
+			float result = y - 1.5f;
+			float r = 3f;
+			float r2 = r * 8;
+			result += 0.5f * (float)simplex.Evaluate(x * r, y * r, z * r);
+			result += 0.15f * (float)simplex.Evaluate(x * r2, y * r2, z * r2);
+			return result;
+		};
 	}
 
 	public static float Sphere(float x, float y, float z, float r) {

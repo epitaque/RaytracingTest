@@ -49,10 +49,14 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 				normal.x = sample(p.x - h, p.y, p.z) - sample(p.x, p.y, p.z);
 				normal.y = sample(p.x, p.y - h, p.z) - sample(p.x, p.y, p.z);
 				normal.z = sample(p.x, p.y, p.z - h) - sample(p.x, p.y, p.z);
-				normal = Vector3.Normalize(normal);
+				normal = -Vector3.Normalize(normal);
 				node.Normal = normal;
-				node.Color = new Color(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z), 1.0f);
-				//node.Color = new Color(node.Position.x - 1, node.Position.y - 1, node.Position.z - 1, 1.0f);
+				// node.Color = new Color(-Mathf.Clamp(normal.x, -1, 0), -Mathf.Clamp(normal.y, -1, 0), -Mathf.Clamp(normal.z, -1, 0), 1.0f);
+				node.Color = new Color(node.Position.x - 1, node.Position.y - 1, node.Position.z - 1, 1.0f);
+				int encoded = encodeRawNormal16(normal);
+				//Vector3 decoded = Vector3.Normalize(decodeRawNormal16(encoded));
+
+				//node.Color = new Color(Mathf.Abs(decoded.x), Mathf.Abs(decoded.y), Mathf.Abs(decoded.z), 1.0f);
 
 				return node;
 			}
@@ -88,15 +92,14 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 					if(node.Children[i] != null) {
 						numChildren++;
 						color.x += node.Children[i].Color.r;
-						normal.x += node.Children[i].Normal.x;
+						normal += node.Children[i].Normal;
 					}
 				}
 
-				color = color * (1 / numChildren);
-				normal = normal * (1 / numChildren);
+				color = color * (1f / (float)numChildren);
 
 				node.Color = new Color(color.x, color.y, color.z);
-				node.Normal = normal;
+				node.Normal = Vector3.Normalize(normal);
 				return node;
 			}
 		}
@@ -143,7 +146,11 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
                 }
 				else {
 					if(childPointer == 0) {
-						childPointer = (int)compressedNodes.Count;
+						childPointer = compressedNodes.Count - nodeIndex;
+						if((childPointer & 0x8000) != 0) { // far
+							
+						}
+
 					}
 					compressedNodes.Add(0); 
 					attachments.Add(0); attachments.Add(0);
@@ -151,10 +158,10 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
             }
         }
 
-		int childPointerClone = (int)childPointer;
+		int childPointerClone = childPointer;
 		for(int childNum = 0; childNum < 8; childNum++) {
 			if(node.Children[childNum] != null && !node.Children[childNum].Leaf) {
-				CompressSVOAux(node.Children[childNum], childPointerClone++, compressedNodes, attachments);
+				CompressSVOAux(node.Children[childNum], nodeIndex + childPointerClone++, compressedNodes, attachments);
 			}
 		}
 
@@ -163,20 +170,20 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
         int result = (childPointer << 16) | (validMask << 8) | (nonLeafMask << 0);
 
-		long attachment = GetAttachment(node);
+		ulong attachment = GetAttachment(node);
 		attachments[nodeIndex * 2] = ((uint)attachment);
 		attachments[nodeIndex * 2 + 1] = ((uint)(attachment >> 32));
 		compressedNodes[nodeIndex] = result;
     }
 
-	public static long GetAttachment(Node node) {
-		long attachment = 0;
+	public static ulong GetAttachment(Node node) {
+		ulong attachment = 0;
 		int inodeAColor = 0; // 16 bits to encode node A color (5 6 5)
 		int inodeBColor = 0; // 16 bits to encode node B color (5 6 5)
 		int icolorChoices = 0; // 16 bits node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
 		int inormal = 0; // 1 bit sign, 2 bits axis, 7 bits u coordinate on unit cube, 6 bits v coordinate 
 
-		Vector3 normal = Vector3.zero;
+		Vector3 normal = node.Normal;
 		Vector3 colorSum = Vector3.zero; 
 
 		Vector3 nodeAColor = Vector3.zero;
@@ -191,7 +198,6 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			Node child = node.Children[i];
 			if(child == null) continue;
 			numChildren++;
-			normal += child.Normal;
 			Vector3 vColor = new Vector3(child.Color.r, child.Color.g, child.Color.b);
 			colorSum += vColor;
 
@@ -207,8 +213,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 		inodeAColor = CompressColor(nodeAColor);
 		inodeBColor = CompressColor(nodeBColor);
-		normal = Vector3.Normalize(normal * (1f / numChildren));
-		inormal = CompressNormal(normal);
+		inormal = encodeRawNormal16(normal);
 
 		Vector3[] candidateColors = new Vector3[] { nodeAColor, nodeBColor, .667f * nodeAColor + .333f * nodeBColor, .333f * nodeAColor + .667f * nodeBColor };
 
@@ -228,10 +233,9 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 			}
 			icolorChoices |= choice << (i * 2);
-
 		}
 
-		attachment = (long)inodeAColor | ((long)inodeBColor << 16) | ((long)icolorChoices << 32) | ((long)inormal << 48);
+		attachment = (ulong)inodeAColor | ((ulong)inodeBColor << 16) | ((ulong)icolorChoices << 32) | ((ulong)inormal << 48);
 
 		return attachment;
 	}
@@ -291,13 +295,13 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			}
 		}
 
-		long attachment = GetAttachment(testNode);
+		ulong attachment = GetAttachment(testNode);
 		int inodeAColor = (int)(attachment & 65535); // 16 bits to encode node A color (5 6 5)
 		int inodeBColor = (int)((attachment >> 16) & 65535); // 16 bits to encode node B color (5 6 5)
 		int icolorChoices = (int)((attachment >> 32) & 65535); // 16 bits node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
 		int inormal = (int)((attachment >> 48)); // 1 bit sign, 2 bits axis, 7 bits u coordinate on unit cube, 6 bits v coordinate
 
-		output += "\nRaw attachment: " + Convert.ToString(attachment, 2).PadLeft(64, '0') + "\n";
+		output += "\nRaw attachment: " + Convert.ToString((long)attachment, 2).PadLeft(64, '0') + "\n";
 		output += "NodeAColor: " + Convert.ToString(inodeAColor, 2).PadLeft(16, '0') + "\n";
 		output += "NodeBColor: " + Convert.ToString(inodeBColor, 2).PadLeft(16, '0') + "\n";
 		output += "ColorChoices: " + Convert.ToString(icolorChoices, 2).PadLeft(16, '0') + "\n";
@@ -485,7 +489,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			default: tuv = new Vector3(normal.z, normal.x, normal.y); break;
 		}
 
-		uint signbit = ((tuv.x >= 0.0f) ? 0u : ((uint)0x80000000)); // set 32nd bit to 1
+		uint signbit = ((tuv.x >= 0.0f) ? 0 : 0x80000000); // set 32nd bit to 1
 		uint axisbit = (axis << 29); // set 31st and 30th bits to axis bits
 
 
@@ -504,20 +508,25 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 	private static Vector3 decodeRawNormal32(uint value)
 	{
-		int sign = (int)(value >> 31);
+		//uint valueshifted = value >> 31;
+		uint regshift = value >> 31;
+		int shiftTest = -1 >> 31;
+
+		int reintrepreted = (int)value;
+
+		int sign = reintrepreted >> 31;
 		float t = (float)(sign ^ 0x7fffffff);
 		float u = (float)((int)value << 3);
 		float v = (float)((int)value << 18);
 
 		Vector3 result = new Vector3(t, u, v);
 		if ((value & 0x20000000) != 0) {
-			result.x = v; result.y = t; result.z = u;
-		}
+			result.x = v; result.y = t; result.z = u;}
 		else if ((value & 0x40000000) != 0) {
-			result.x = u; result.y = v; result.z = t;
-		}
+			result.x = u; result.y = v; result.z = t;}
 		return result;
 	}
+
 
 	private static ushort encodeRawNormal16(Vector3 normal)
 	{
@@ -534,33 +543,9 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 		ushort signbit = (ushort)((tuv.x >= 0.0f) ? 0 : (0x8000)); // set 16th bit to 1
 		ushort axisbit = (ushort)(axis << 13); // set 15th and 14th bits to axis bits
-
-		// before: u 15 v 14
-		// 16383 = 2^14 - 1
-		// -0x4000 = -0b100000000000000 (1 followed by 14 zeroes)
-		// 0x3FFF = 0b11111111111111 (14 1s)
-		// 0x7FFF = 0b111111111111111 (15 1s)
-
-		// u is 7 bits
-		// 63 = 2^6 - 1
-		// -0x40 = -0b1000000 (1 followed by 6 zeroes)
-		// 0x3F = 0b111111 (6 1s)
-		// 0x7F = 0b1111111 (7 1s)
-
-		// v is 6 bits
-		// 31 = 2^5 - 1
-		// -0x20 = -0b100000 (1 followed by 5 zeroes)
-		// 0x1F = 0b11111 (5 1s)
-		// 0x3F = 0b111111 (6 1s)
-
-		//ushort u = (ushort)(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 63.0f), -0x40, 0x1F) & 0x3F) << 6);
-		//ushort v = (ushort)(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 31.0f), -0x20, 0xF) & 0x1F));
-		// uint u = __int_as_uint(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 16383.0f), -0x4000, 0x3FFF) & 0x7FFF) << 14);
-		// uint v = __int_as_uint(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 8191.0f),   -0x2000, 0x1FFF) & 0x3FFF));
-
 		
-		uint u = (ushort)__int_as_uint(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 63.0f), -0x40, 0x3F) & 0x7F) << 6);
-		uint v = (ushort)__int_as_uint(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 31.0f), -0x20, 0x1F) & 0x3F));
+		uint u = (ushort)(((int)Mathf.Clamp( ((tuv.y / Mathf.Abs(tuv.x)) * 63.0f), -0x40, 0x3F) & 0x7F) << 6);
+		uint v = (ushort)(((int)Mathf.Clamp( ((tuv.z / Mathf.Abs(tuv.x)) * 31.0f), -0x20, 0x1F) & 0x3F));
 
 		return (ushort)(
 			signbit |
@@ -569,12 +554,19 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			v);
 	}
 
-	private static Vector3 decodeRawNormal16(ushort value)
+	public static Vector3 decodeRawNormal16(int value)
 	{
-		int sign = (value >> 15);
-		float t = (float)(sign ^ 0x7fff);
-		float u = (float)((ushort)(value << 3));
-		float v = (float)((ushort)(value << 10));
+		//int sign = ((value << 16) >> 31);
+		//float t = (float)(sign ^ 0x7fff);
+		
+		float t = 32767; //(float)(sign ^ 0x7fff);
+
+		if( (value & 0x8000) != 0) { 
+			t = -32768;
+		}
+
+		float u = (float)((value << (3 + 16)) >> 16); 
+		float v = (float)((value << (10 + 16)) >> 16);
 
 		Vector3 result = new Vector3(t, u, v);
 		if ((value & 0x2000) != 0) {
@@ -588,26 +580,27 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 	static NaiveCreator() {
 		//TestSVOCompaction();
-		//TestNormalCompaction();
+		//TestNormalCompaction(); 
 		//TestDecompressAttachment();
-		TestNVIDIANormalCompression();
+		//TestNVIDIANormalCompression();
 	}
 
 	public static void TestNVIDIANormalCompression() {
-		Vector3 rawNormal = Vector3.Normalize(new Vector3(5, 4, 3));
-		ushort compressedNormal = encodeRawNormal16(rawNormal);
-		Vector3 decompressedNormal = Vector3.Normalize(decodeRawNormal16(compressedNormal));
+		Vector3 rawNormal = Vector3.Normalize(new Vector3(2, 3, -6));   
+		// uint compressedNormal = encodeRawNormal32(rawNormal); 
+		int compressedNormal = encodeRawNormal16(rawNormal); 
+		Vector3 decompressedNormal = Vector3.Normalize(decodeRawNormal16(compressedNormal)); //Vector3.Normalize();
 
 		string output = "Normal Compression Test\n";
 		output += "Raw Normal: " + rawNormal.ToString("F4") + "\n";
-		output += "Compressed Normal: " + Convert.ToString(compressedNormal, 2).PadLeft(32, '0') + "\n";
+		output += "Compressed Normal: " + Convert.ToString(compressedNormal, 2).PadLeft(16, '0') + "\n";
 		output += "Decompressed Normal: " + decompressedNormal.ToString("F4") + "\n";
-		Debug.Log(output);
-
+		Debug.Log(output); 
+ 
 	}
 
 	public static void TestNormalCompaction() {
-		Vector3 norm = new Vector3(-35, -35, 356);
+		Vector3 norm = new Vector3(-35, 35, 356);
 		norm = Vector3.Normalize(norm);
 		int compressed = CompressNormal(norm);
 
@@ -621,14 +614,19 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 	public static void TestSVOCompaction() {
 		NaiveCreator creator = new NaiveCreator();
 		List<int> nodes = new List<int>();
-		Node root = new Node(new Vector3(-1, -1, -1), 2, 1, false);
-		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 4);
-		//nodes = creator.CompressSVO(root);
+		List<uint> attachments = new List<uint>();
+		Node root = new Node(new Vector3(1, 1, 1), 1, 1, false);
+		creator.BuildTree(root, 1, SampleFunctions.functions[(int)SampleFunctions.Type.Sphere], 3);
+		creator.CompressSVO(root, nodes, attachments);
 		string output = "NaiveCreator SVO Compaction Test\n";
 		output += "Original Hierarchy:\n" + root.StringifyHierarchy() + "\n\n";
-		output += "Compressed:\n" + string.Join("\n", nodes.ConvertAll(code => new ChildDescriptor(code)));
+		output += "Compressed:\n";
+		for(int i = 0; i < nodes.Count; i++) {
+			int normal = (int)(attachments[i*2 + 1] >> 16);
+			output += "CD: " + new ChildDescriptor(nodes[i]) + ", Normal: v" + Vector3.Normalize(NaiveCreator.decodeRawNormal16(normal)) + ", " + Convert.ToString(normal, 2).PadLeft(16, '0') + "(" + normal + ")\n";
+		}
 		Debug.Log(output);
-	}
+	} 
 
 	private static int __uint_as_int(uint x) {
 		uint[] pos_ui = new uint[1] { x };
@@ -653,6 +651,13 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		return pos_us[0];
 	}
 
+	private static short __int_as_short(int x) {
+		int[] pos_i = new int[1] { x };
+		short[] pos_s = new short[1];
+
+		Buffer.BlockCopy(pos_i, 0, pos_s, 0, 1 * 2);
+		return pos_s[0];
+	}
 
 }
 }

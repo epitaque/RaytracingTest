@@ -37,8 +37,6 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
 				node.Children[childNum] = child;
 
-				
-
 				if(!leaf) {
 					ExpandSVOAux(node.Children[childNum], pointer++, level + 1, svo, svoNodes);
 				}
@@ -73,12 +71,12 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 
 	private void RayStep(List<int> svo, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes, List<Node> allSvoNodes)  {
 		//Debug.Log("Tracing svo hierarchy\n" + allSvoNodes[])
-		string debugStr = "";
-		debugStr += string.Join("\n", svo.ConvertAll(code => new ChildDescriptor(code)));
-		debugStr += "\nNeatly Printed Hierarchy:\n";
-		debugStr += allSvoNodes[0].StringifyHierarchy();
+		//string debugStr = "";
+		//debugStr += string.Join("\n", svo.ConvertAll(code => new ChildDescriptor(code)));
+		//debugStr += "\nNeatly Printed Hierarchy:\n";
+		//debugStr += allSvoNodes[0].StringifyHierarchy();
 
-		GUIUtility.systemCopyBuffer = debugStr;
+		//GUIUtility.systemCopyBuffer = debugStr;
 
 
 		int s_max = 23;

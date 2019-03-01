@@ -60,6 +60,7 @@ public class SVODriver : MonoBehaviour {
 	}
 
 	void UpdateSVO() {
+		return;
 		if(svoType == SVOType.CompactSVO) {
 			svo = new CompactSVO(SampleFunctions.functions[(int)sampleType], maxLevel);
 		} else if(svoType == SVOType.NaiveSVO) {
@@ -71,6 +72,7 @@ public class SVODriver : MonoBehaviour {
 	}
 
 	void UpdateRaycast() {
+		return;
 		//if(UnityEditor.EditorApplication != null && !UnityEditor.EditorApplication.isPlaying) {return;}
 		currentRay = new Ray(lastRayStartPosition / scale, lastRayEndPosition - lastRayStartPosition);
 
@@ -85,9 +87,10 @@ public class SVODriver : MonoBehaviour {
 	}
 
     void OnDrawGizmos() {
+		return;
 		//if(!UnityEditor.EditorApplication.isPlaying) {return;}
 		
-		foreach(ColoredBox box in debugBoxes) {
+ 		foreach(ColoredBox box in debugBoxes) {
         	Gizmos.color = box.Color;
 			Gizmos.DrawCube(box.Center * scale, box.Size * scale);
 		}
