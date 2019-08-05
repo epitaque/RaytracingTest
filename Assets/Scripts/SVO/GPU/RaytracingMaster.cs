@@ -106,7 +106,7 @@ public class RaytracingMaster : MonoBehaviour
 		_svoAttachmentsBuffer = new ComputeBuffer(data.attachments.Count, 4);
 
 		// Print SVO
-		/* string output = "Raytracing SVO Results\n";
+		/* string output = "\n";
 		for(int i = 0; i < data.childDescriptors.Count; i++) {
 			int normal = (int)(data.attachments[i*2 + 1] >> 16);
 			output += "CD: " + new RT.CS.ChildDescriptor(data.childDescriptors[i]) + "\n"; //, Normal: v" + Vector3.Normalize(RT.CS.NaiveCreator.decodeRawNormal16(normal)) + System.Convert.ToString(normal, 2).PadLeft(16, '0') + "(" + normal + ")\n";

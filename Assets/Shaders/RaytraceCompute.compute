@@ -25,7 +25,7 @@ struct RayHit
 	float3 albedo;
 };
 
-#include "NVIDIASVO.compute"
+#include "NVIDIASVO.compute" 
 
 RayHit CreateRayHit()
 {

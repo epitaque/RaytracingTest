@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using RT.CS;
+using System.IO;
 
 /*
     Class that stores the SVO in the following format
@@ -35,6 +36,7 @@ public class SVOData {
 
 public class CompactSVO : SVO {
     private List<int> svo;
+	private int positionOfLastLevel;
 	private UtilFuncs.Sampler sample;
     private int maxLevel;
 
@@ -64,6 +66,10 @@ public class CompactSVO : SVO {
 		Create(sample, maxLevel);
 	}
 
+	public CompactSVO(string filename) {
+
+	}
+
 	public void Create(UtilFuncs.Sampler sample, int maxLevel) {
 		this.maxLevel = maxLevel;
 		this.sample = sample;
@@ -71,8 +77,21 @@ public class CompactSVO : SVO {
 		BuildSVO();
 	}
 
+	public void SaveToDisk(string filename) {
+		using (BinaryWriter writer = new BinaryWriter(File.Open(filename, FileMode.Create))) {
+			for(int i = 0; i < svo.Count; i++) {
+				writer.Write(svo[i]);
+			}
+        }
+	}
+
 	public void BuildSVO() {
 		svo = creator.Create(sample, maxLevel).childDescriptors;
+	}
+
+	public void AddSlice(Slice slice) {
+		// make a new child descriptor for each leaf
+		// for()
 	}
 
     public List<SVONode> Trace(UnityEngine.Ray ray) {
