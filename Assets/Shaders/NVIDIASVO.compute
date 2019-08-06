@@ -5,15 +5,15 @@
 #define SVO_SCALE_05 1.0f/64.0f
 #define SVO_SCALE_1 32.0f 
 
-StructuredBuffer<int> _SVO; 
+StructuredBuffer<int> _SVO2; 
 StructuredBuffer<uint> _SVOAttachments; // 2 * size of _SVO
 
 #include "AttachmentLookup.compute"
 
-void IntersectSVO(Ray ray, inout RayHit bestHit) { 
+void IntersectSVO(Ray ray, inout RayHit bestHit, StructuredBuffer<int> _SVO) { 
 	int2 stack[s_max + 1]; // Stack of parent voxels (local mem).
 
-	ray.origin *= SVO_SCALE_05;
+	ray.origin *= SVO_SCALE;
 
 	ray.origin.x += 1.5f;
 	ray.origin.y += 1.5f;
@@ -42,7 +42,7 @@ void IntersectSVO(Ray ray, inout RayHit bestHit) {
 	float t_max = min(min(tx_coef - tx_bias, ty_coef - ty_bias), tz_coef - tz_bias);
 	float h = t_max;
 	t_min = max(t_min, 0.0f);
-	t_max = min(t_max, 1.0f);
+	// t_max = min(t_max, 1.0f);
 	// Initialize the current voxel to the first child of the root.
 	int parent = 0;
 	int child_descriptor = 0; // invalid until fetched
@@ -189,7 +189,7 @@ void IntersectSVO(Ray ray, inout RayHit bestHit) {
 	//bestHit.albedo = float3(pos.x - 1, pos.y - 1, pos.z - 1); 
 	//bestHit.normal = float3(0, 1, 0); // //float3(1, 0, 0);
 	//float3 normal = decodeNormal(blockB >> 16);
-//	bestHit.albedo = normalize(float3(abs(normal.x), abs(normal.y), abs(normal.z))); //float3(bestHit.normal.z, bestHit.normal.z, bestHit.normal.z);//decodeDXTColor(blockA, blockB, hit_idx);//float3(pos.x - 1, pos.y - 1, pos.z - 1); 
+	//	bestHit.albedo = normalize(float3(abs(normal.x), abs(normal.y), abs(normal.z))); //float3(bestHit.normal.z, bestHit.normal.z, bestHit.normal.z);//decodeDXTColor(blockA, blockB, hit_idx);//float3(pos.x - 1, pos.y - 1, pos.z - 1); 
 	
 	//float3(pos.x - 1, pos.y - 1, pos.z - 1); 
 

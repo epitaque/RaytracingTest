@@ -26,6 +26,8 @@ struct RayHit
 };
 
 #include "NVIDIASVO.compute" 
+#include "Clipmap.compute" 
+
 
 RayHit CreateRayHit()
 {
@@ -73,7 +75,7 @@ void IntersectSphere(Ray ray, inout RayHit bestHit, float4 sphere)
         bestHit.distance = t;
         bestHit.position = ray.origin + t * ray.direction;
         bestHit.normal = normalize(bestHit.position - sphere.xyz);
-    }
+    } 
 }
 
 RayHit Trace(Ray ray)
@@ -81,7 +83,7 @@ RayHit Trace(Ray ray)
     RayHit bestHit = CreateRayHit();
     //IntersectGroundPlane(ray, bestHit);
 	//IntersectSphere(ray, bestHit, float4(0, 3.0f, 0, 1.0f));
-	IntersectSVO(ray, bestHit);
+	IntersectClipmap(ray, bestHit);
 	
     return bestHit;
 }

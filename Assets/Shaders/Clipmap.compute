@@ -1,0 +1,27 @@
+StructuredBuffer<int> _SVO1;
+int3 startingChunkPosition;
+
+
+void IntersectClipmap(Ray ray, inout RayHit bestHit) {
+	int3 currentChunkPosition = startingChunkPosition;
+	float3 hitPos;
+	int i = 0;
+
+	while (true) {
+		Ray ray2 = ray;
+		ray2.origin -= startingChunkPosition;
+		IntersectSVO(ray2, bestHit, _SVO1);
+
+    	if (bestHit.distance < 1.#INF) {
+			// we hit a cube
+			break;
+		}
+		i++;
+		if(i > 2) {
+			break;
+		}
+
+
+	}
+}
+
