@@ -19,7 +19,7 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<int> svo) { 
 		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
  
-		node.Children = new Node[8]; 
+		node.children = new Node[8]; 
 		int pointer = descriptor.childPointer;
 		float half = node.Size/2;
 
@@ -28,10 +28,10 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 				bool leaf = descriptor.Leaf(childNum);
 
 				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
-				node.Children[childNum] = child;
+				node.children[childNum] = child;
 
 				if(!leaf) {
-					ExpandSVOAux(node.Children[childNum], pointer++, level + 1, svo);
+					ExpandSVOAux(node.children[childNum], pointer++, level + 1, svo);
 				}
 			}
 		}
@@ -99,35 +99,35 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 		do{ 		
 			switch (currNode) { 		
 			case 0: {  			
-				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,txm,tym,tzm,node.Children[a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tz0,txm,tym,tzm,node.children[a], intersectedNodes, a);
 				currNode = NewNode(txm,4,tym,2,tzm,1);
 				break;}
 			case 1: {
-				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tzm,txm,tym,tz1,node.Children[1^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,ty0,tzm,txm,tym,tz1,node.children[1^a], intersectedNodes, a);
 				currNode = NewNode(txm,5,tym,3,tz1,8);
 				break;}
 			case 2: {
-				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tz0,txm,ty1,tzm,node.Children[2^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tz0,txm,ty1,tzm,node.children[2^a], intersectedNodes, a);
 				currNode = NewNode(txm,6,ty1,8,tzm,3);
 				break;}
 			case 3: {
-				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tzm,txm,ty1,tz1,node.Children[3^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, tx0,tym,tzm,txm,ty1,tz1,node.children[3^a], intersectedNodes, a);
 				currNode = NewNode(txm,7,ty1,8,tz1,8);
 				break;}
 			case 4: {
-				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tz0,tx1,tym,tzm,node.Children[4^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tz0,tx1,tym,tzm,node.children[4^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,tym,6,tzm,5);
 				break;}
 			case 5: {
-				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.Children[5^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,ty0,tzm,tx1,tym,tz1,node.children[5^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,tym,7,tz1,8);
 				break;}
 			case 6: {
-				ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.Children[6^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,tym,tz0,tx1,ty1,tzm,node.children[6^a], intersectedNodes, a);
 				currNode = NewNode(tx1,8,ty1,8,tzm,7);
 				break;}
 			case 7: {
-				ProcSubtree(rayOrigin, rayDirection, txm,tym,tzm,tx1,ty1,tz1,node.Children[7^a], intersectedNodes, a);
+				ProcSubtree(rayOrigin, rayDirection, txm,tym,tzm,tx1,ty1,tz1,node.children[7^a], intersectedNodes, a);
 				currNode = 8;
 				break;}
 			}
@@ -183,9 +183,9 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 		
 		nodes.Add(node);
 
-		if(node.Children != null) {
+		if(node.children != null) {
 			for(int i = 0; i < 8; i++) {
-				GetAllNodesAux(node.Children[i], nodes);
+				GetAllNodesAux(node.children[i], nodes);
 			}
 		}
 	}

@@ -22,7 +22,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<int> svo, List<Node> svoNodes) { 
 		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
  
-		node.Children = new Node[8];
+		node.children = new Node[8];
 		int pointer = descriptor.childPointer;
 		float half = node.Size/2f;
 
@@ -35,10 +35,10 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 				bool leaf = descriptor.Leaf(childNum);
 
 				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
-				node.Children[childNum] = child;
+				node.children[childNum] = child;
 
 				if(!leaf) {
-					ExpandSVOAux(node.Children[childNum], pointer++, level + 1, svo, svoNodes);
+					ExpandSVOAux(node.children[childNum], pointer++, level + 1, svo, svoNodes);
 				}
 			}
 		}
@@ -283,7 +283,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 			Debug.Log("Hit_t: " + t_min);
 			Debug.Log("Hit parents: " + string.Join(", ", parentsVisited));
 			Debug.Log("Hit idx: " + (idx ^ octant_mask ^ 7));
-			intersectedNodes.Add(allSvoNodes[parent].Children[idx ^ octant_mask ^ 7]);
+			intersectedNodes.Add(allSvoNodes[parent].children[idx ^ octant_mask ^ 7]);
 		}
 
 	
@@ -306,9 +306,9 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		
 		nodes.Add(node);
 
-		if(node.Children != null) {
+		if(node.children != null) {
 			for(int i = 0; i < 8; i++) {
-				GetAllNodesAux(node.Children[i], nodes);
+				GetAllNodesAux(node.children[i], nodes);
 			}
 		}
 	}

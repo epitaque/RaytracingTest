@@ -8,4 +8,5 @@ public class Chunk {
 	public int lod;
 	public Vector4Int key;
 	public int index;
+	public Node node;
 }

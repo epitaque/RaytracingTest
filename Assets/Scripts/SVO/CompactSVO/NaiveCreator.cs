@@ -50,9 +50,9 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 				normal.y = sample(p.x, p.y - h, p.z) - sample(p.x, p.y, p.z);
 				normal.z = sample(p.x, p.y, p.z - h) - sample(p.x, p.y, p.z);
 				normal = -Vector3.Normalize(normal);
-				node.Normal = normal;
+				node.normal = normal;
 				// node.Color = new Color(-Mathf.Clamp(normal.x, -1, 0), -Mathf.Clamp(normal.y, -1, 0), -Mathf.Clamp(normal.z, -1, 0), 1.0f);
-				node.Color = new Color(node.Position.x - 1, node.Position.y - 1, node.Position.z - 1, 1.0f);
+				node.color = new Color(node.Position.x - 1, node.Position.y - 1, node.Position.z - 1, 1.0f);
 				int encoded = encodeRawNormal16(normal);
 				//Vector3 decoded = Vector3.Normalize(decodeRawNormal16(encoded));
 
@@ -67,16 +67,16 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		else {
 			bool childExists = false;
 			int numLeaves = 0;
-			node.Children = new Node[8];
+			node.children = new Node[8];
 			float half = node.Size/2;
 
 			for(int i = 0; i < 8; i++) {
 				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level + 1, level + 1 == maxLevel);
-				node.Children[i] = BuildTree(child, level + 1, sample, maxLevel);
+				node.children[i] = BuildTree(child, level + 1, sample, maxLevel);
 
-				if(node.Children[i] != null) {
+				if(node.children[i] != null) {
 					childExists = true;
-					if(node.Children[i].Leaf) {
+					if(node.children[i].Leaf) {
 						numLeaves++;
 					}
 				}
@@ -89,17 +89,17 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 				Vector3 normal = Vector3.zero;
 				for(int i = 0; i < 8; i++) {
 
-					if(node.Children[i] != null) {
+					if(node.children[i] != null) {
 						numChildren++;
-						color.x += node.Children[i].Color.r;
-						normal += node.Children[i].Normal;
+						color.x += node.children[i].color.r;
+						normal += node.children[i].normal;
 					}
 				}
 
 				color = color * (1f / (float)numChildren);
 
-				node.Color = new Color(color.x, color.y, color.z);
-				node.Normal = Vector3.Normalize(normal);
+				node.color = new Color(color.x, color.y, color.z);
+				node.normal = Vector3.Normalize(normal);
 				return node;
 			}
 		}
@@ -138,10 +138,10 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
         for(int childNum = 0; childNum < 8; childNum++) { 
             int bit = (int)1 << childNum;
 
-            if(node.Children[childNum] != null) {
+            if(node.children[childNum] != null) {
                 validMask |= bit;
 
-                if(node.Children[childNum].Leaf) {
+                if(node.children[childNum].Leaf) {
                     leafMask |= bit;
                 }
 				else {
@@ -160,8 +160,8 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 		int childPointerClone = childPointer;
 		for(int childNum = 0; childNum < 8; childNum++) {
-			if(node.Children[childNum] != null && !node.Children[childNum].Leaf) {
-				CompressSVOAux(node.Children[childNum], nodeIndex + childPointerClone++, compressedNodes, attachments);
+			if(node.children[childNum] != null && !node.children[childNum].Leaf) {
+				CompressSVOAux(node.children[childNum], nodeIndex + childPointerClone++, compressedNodes, attachments);
 			}
 		}
 
@@ -183,7 +183,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		int icolorChoices = 0; // 16 bits node color choices, chosen from {A, B, .66A + .33A, .33A + .67B}
 		int inormal = 0; // 1 bit sign, 2 bits axis, 7 bits u coordinate on unit cube, 6 bits v coordinate 
 
-		Vector3 normal = node.Normal;
+		Vector3 normal = node.normal;
 		Vector3 colorSum = Vector3.zero; 
 
 		Vector3 nodeAColor = Vector3.zero;
@@ -195,10 +195,10 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		float bdist = 0;
 
 		for(int i = 0; i < 8; i++) {
-			Node child = node.Children[i];
+			Node child = node.children[i];
 			if(child == null) continue;
 			numChildren++;
-			Vector3 vColor = new Vector3(child.Color.r, child.Color.g, child.Color.b);
+			Vector3 vColor = new Vector3(child.color.r, child.color.g, child.color.b);
 			colorSum += vColor;
 
 			if(numChildren == 1) {
@@ -218,9 +218,9 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		Vector3[] candidateColors = new Vector3[] { nodeAColor, nodeBColor, .667f * nodeAColor + .333f * nodeBColor, .333f * nodeAColor + .667f * nodeBColor };
 
 		for(int i = 0; i < 8; i++) {
-			Node child = node.Children[i];
+			Node child = node.children[i];
 			if(child == null) continue;
-			Vector3 vColor = new Vector3(child.Color.r, child.Color.g, child.Color.b);
+			Vector3 vColor = new Vector3(child.color.r, child.color.g, child.color.b);
 			float shortestDistance = 100;
 			int choice = 0;
 
@@ -278,7 +278,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 	public static void TestDecompressAttachment() {
 		Node testNode = new Node(Vector3.zero, 1, 1, false, Vector3.up, Color.gray);
-		testNode.Children = new Node[] { null, 
+		testNode.children = new Node[] { null, 
 			new Node(Vector3.zero, 1, 1, false, new Vector3(0, 1, 0), new Color(0.9f, 0.5f, 0.3f)), 
 			new Node(Vector3.zero, 1, 1, false, new Vector3(0, 1, 0), new Color(0.3f, 0.1f, 0.2f)),
 			new Node(Vector3.zero, 1, 1, false, new Vector3(0.77f, 0.77f, 0), new Color(0.1f, 0.8f, 0.4f)),
@@ -287,11 +287,11 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		string output = "Original Child Node colors and normals\n";
 
 		for(int i = 0; i < 8; i++) {
-			Node n = testNode.Children[i];
+			Node n = testNode.children[i];
 			if(n == null) {
 				output += "C" + i + " is null\n";
 			} else {
-				output += "C" + i + " color: " + n.Color + ", normal: " + n.Normal + "\n";
+				output += "C" + i + " color: " + n.color + ", normal: " + n.normal + "\n";
 			}
 		}
 

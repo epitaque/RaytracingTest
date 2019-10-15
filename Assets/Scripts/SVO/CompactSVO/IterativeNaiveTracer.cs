@@ -19,7 +19,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 	private void ExpandSVOAux(Node node, int nodeIndex, int level, List<int> svo) { 
 		ChildDescriptor descriptor = new ChildDescriptor(svo[nodeIndex]); 
  
-		node.Children = new Node[8]; 
+		node.children = new Node[8]; 
 		int pointer = descriptor.childPointer;
 		float half = node.Size/2;
 
@@ -28,10 +28,10 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 				bool leaf = descriptor.Leaf(childNum);
 
 				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
-				node.Children[childNum] = child;
+				node.children[childNum] = child;
 
 				if(!leaf) {
-					ExpandSVOAux(node.Children[childNum], pointer++, level + 1, svo);
+					ExpandSVOAux(node.children[childNum], pointer++, level + 1, svo);
 				}
 			}
 		}
@@ -212,7 +212,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 			}
 
 			Vector3 childT1 = getT1(tm, t1, data.currNode);
-			ParameterData nextFrame = new ParameterData(childT1, data.node.Children[data.currNode^a], -1);
+			ParameterData nextFrame = new ParameterData(childT1, data.node.children[data.currNode^a], -1);
 			data.currNode = getNewNode(tm, t1, data.currNode);				
 			stack[++sf] = nextFrame;
 		}
@@ -268,9 +268,9 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		
 		nodes.Add(node);
 
-		if(node.Children != null) {
+		if(node.children != null) {
 			for(int i = 0; i < 8; i++) {
-				GetAllNodesAux(node.Children[i], nodes);
+				GetAllNodesAux(node.children[i], nodes);
 			}
 		}
 	}

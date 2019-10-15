@@ -13,12 +13,14 @@ public class Clipmap : MonoBehaviour {
 	private int ChunkArraySize => radius * 4;
 	private bool initialized;
 	private Vector3Int previousPosition;
+	private Octree octree;
 
 	void Start () {
 		initialized = false;
 		arrayMin = 0;
 		arrayMax = 0;
-		chunks = new Chunk[lods][, , ];
+		chunks = new Chunk[lods][,,];
+		octree = new Octree();
 		for (int i = 0; i < lods; i++) {
 			chunks[i] = new Chunk[ChunkArraySize, ChunkArraySize, ChunkArraySize];
 		}
@@ -103,6 +105,7 @@ public class Clipmap : MonoBehaviour {
 							numChunksAdded++;
 							chunks[lod][arrx, arry, arrz] = chunk;
 							chunkArray[chunk.index] = chunk;
+							octree.AddChunk(chunk);
 						} else {
 							chunks[lod][arrx, arry, arrz].creationTime = updateTime;
 						}
@@ -117,8 +120,8 @@ public class Clipmap : MonoBehaviour {
 		double ElapsedMilliseconds1 = sw.Elapsed.TotalMilliseconds;
 		sw.Restart ();
 
-		removeOldChunks (updateTime);
-		updateArrayMin ();
+		RemoveOldChunks (updateTime);
+		UpdateArrayMin ();
 
 		double ElapsedMilliseconds2 = sw.Elapsed.TotalMilliseconds;
 		Debug.LogFormat ("Chunk Update: S1 {0} ms, S2 {1} ms, Total {2}ms ({3} chunks added)",
@@ -126,19 +129,20 @@ public class Clipmap : MonoBehaviour {
 		sw.Stop ();
 	}
 
-	void removeOldChunks (float updateTime) {
+	void RemoveOldChunks (float updateTime) {
 		for (int i = arrayMin; i < arrayMax; i++) {
 			Chunk c = chunkArray[i];
 			if (c != null) {
 				if (c.creationTime != updateTime) {
 					chunkArray[i] = null;
 					chunks[c.key.w][c.key.x, c.key.y, c.key.z] = null;
+					octree.RemoveChunk(c);
 				}
 			}
 		}
 	}
 
-	void updateArrayMin () {
+	void UpdateArrayMin () {
 		for (int i = arrayMin; i < arrayMax; i++) {
 			if (chunkArray[i] != null) {
 				arrayMin = i;
@@ -153,13 +157,15 @@ public class Clipmap : MonoBehaviour {
 		}
 		// Debug.Log ("Drawing gizmos");
 
-		for (int i = arrayMin; i < arrayMax; i++) {
-			if (chunkArray[i] != null) {
-				Chunk chunk = chunkArray[i];
-				Gizmos.color = UtilFuncs.SinColor (chunk.lod * 3f);
-				Gizmos.DrawSphere (chunk.position + (chunk.size / 2) * Vector3.one, chunk.lod + 0.5f);
-			}
-		}
+		// for (int i = arrayMin; i < arrayMax; i++) {
+		// 	if (chunkArray[i] != null) {
+		// 		Chunk chunk = chunkArray[i];
+		// 		Gizmos.color = UtilFuncs.SinColor (chunk.lod * 3f);
+		// 		Gizmos.DrawSphere (chunk.position + (chunk.size / 2) * Vector3.one, chunk.lod + 0.5f);
+		// 	}
+		// }
+
+		OctreeDebugger.DrawOctreeGizmosRecursive(octree.root, 1);
 	}
 
 }

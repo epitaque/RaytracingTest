@@ -3,19 +3,19 @@ using System;
 
 namespace RT.CS {
 public class Node : SVONode {
-	public Boolean ErrorNode;
-	public Node[] Children;
-	public Vector3 Normal;
-	public Color Color;
+	public Boolean errorNode;
+	public Node[] children;
+	public Vector3 normal;
+	public Color color;
 
 	public Node(Vector3 position, float size, int level, bool leaf) {
 		Position = position;
 		Size = size;
 		Level = level;
 		Leaf = leaf;
-		ErrorNode = false;
-		Color = Color.red;
-		Normal = Vector3.up;
+		errorNode = false;
+		color = Color.red;
+		normal = Vector3.up;
 	}
 
 	public Node(Vector3 position, float size, int level, bool leaf, Vector3 normal, Color color) {
@@ -23,16 +23,16 @@ public class Node : SVONode {
 		Size = size;
 		Level = level;
 		Leaf = leaf;
-		ErrorNode = false;
-		Normal = normal;
-		Color = color;
+		errorNode = false;
+		this.normal = normal;
+		this.color = color;
 	}
 
 	public override ColoredBox GetColoredBox() {
 		ColoredBox box = new ColoredBox();
 		box.Center = GetCenter();
-		if(!ErrorNode) {
-			box.Color = Color; //UtilFuncs.SinColor(Level * 2f);
+		if(!errorNode) {
+			box.Color = color; //UtilFuncs.SinColor(Level * 2f);
 		}
 		else {
 			box.Color = Color.red;
@@ -45,9 +45,9 @@ public class Node : SVONode {
 	public string StringifyHierarchy() {
 		string result = "";
 		result += ToString() + "\n";
-		if(Children != null) {
+		if(children != null) {
 			for(int i = 0; i < 8; i++) {
-				Node n = Children[i];
+				Node n = children[i];
 				if(n != null) {
 					result += n.StringifyHierarchy();
 				}
