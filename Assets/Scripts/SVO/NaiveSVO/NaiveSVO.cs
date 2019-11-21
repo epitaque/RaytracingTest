@@ -15,10 +15,10 @@ public class NaiveSVO : SVO {
 
 	private class Node : SVONode {
 		public Node(Vector3 position, float size, int level, bool leaf) {
-			Position = position;
-			Size = size;
-			Level = level;
-			Leaf = leaf;
+			base.position = position;
+			base.size = size;
+			base.level = level;
+			base.leaf = leaf;
 		}
 
 		public Node[] Children;
@@ -48,8 +48,8 @@ public class NaiveSVO : SVO {
 	 */
 	private Node BuildTreeAux(Node node, int level) {
 		// Node is leaf. Determine if within surface. If so, return node.
-		if(node.Leaf) {
-			Vector3 p = node.Position + Vector3.one * (float)node.Size / 2;
+		if(node.leaf) {
+			Vector3 p = node.position + Vector3.one * (float)node.size / 2;
 			if(sample(p.x, p.y, p.z) <= 0 && IsEdge(node)) {
 				return node;
 			}
@@ -59,15 +59,15 @@ public class NaiveSVO : SVO {
 		else {
 			bool childExists = false;
 			int numLeaves = 0;
-			float half = node.Size/2;
+			float half = node.size/2;
 			node.Children = new Node[8];
 
 			for(int i = 0; i < 8; i++) {
-				Node child = new Node(node.Position + Constants.vfoffsets[i] * half, half, level + 1, level + 1 == maxLevel);
+				Node child = new Node(node.position + Constants.vfoffsets[i] * half, half, level + 1, level + 1 == maxLevel);
 				node.Children[i] = BuildTreeAux(child, level + 1);
 				if(node.Children[i] != null) {
 					childExists = true;
-					if(node.Children[i].Leaf) {
+					if(node.Children[i].leaf) {
 						numLeaves++;
 					}
 				}
@@ -83,7 +83,7 @@ public class NaiveSVO : SVO {
 	// Given that node resides inside the surface, detects if it's an edge voxel (has air next to it)
 	private bool IsEdge(Node node) {
 		foreach(Vector3 direction in Constants.vdirections) {
-			Vector3 pos = node.GetCenter() + direction * (float)(node.Size);
+			Vector3 pos = node.GetCenter() + direction * (float)(node.size);
 			float s = sample(pos.x, pos.y, pos.z);
 			if(s > 0) {
 				return true;
@@ -135,7 +135,7 @@ public class NaiveSVO : SVO {
 		if(node == null || !(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)) || Mathd.Min(tx1, ty1, tz1) < 0) { 
 			return;
 		}
-		if(node.Leaf){
+		if(node.leaf){
 			intersectedNodes.Add(node);
 			return;
 		}
@@ -182,7 +182,7 @@ public class NaiveSVO : SVO {
 		} while (currNode < 8);
 	}
  	private void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
-		Vector3 nodeMax = node.Position + Vector3.one * (float)node.Size;
+		Vector3 nodeMax = node.position + Vector3.one * (float)node.size;
 		sbyte a = 0;
  		if(rayDirection.x < 0) {
 			rayOrigin.x = -rayOrigin.x;
@@ -203,11 +203,11 @@ public class NaiveSVO : SVO {
  		double divx = 1 / rayDirection.x; // IEEE stability fix
 		double divy = 1 / rayDirection.y;
 		double divz = 1 / rayDirection.z;
- 		double tx0 = (node.Position.x - rayOrigin.x) * divx;
+ 		double tx0 = (node.position.x - rayOrigin.x) * divx;
 		double tx1 = (nodeMax.x - rayOrigin.x) * divx;
-		double ty0 = (node.Position.y - rayOrigin.y) * divy;
+		double ty0 = (node.position.y - rayOrigin.y) * divy;
 		double ty1 = (nodeMax.y - rayOrigin.y) * divy;
-		double tz0 = (node.Position.z - rayOrigin.z) * divz;
+		double tz0 = (node.position.z - rayOrigin.z) * divz;
 		double tz1 = (nodeMax.z - rayOrigin.z) * divz;
 
  		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 		

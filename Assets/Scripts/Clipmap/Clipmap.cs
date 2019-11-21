@@ -14,6 +14,7 @@ public class Clipmap : MonoBehaviour {
 	private bool initialized;
 	private Vector3Int previousPosition;
 	private Octree octree;
+	public RaytracingMaster raytracingMaster;
 
 	void Start () {
 		initialized = false;
@@ -32,6 +33,13 @@ public class Clipmap : MonoBehaviour {
 
 	public void Update () {
 		DoChunkUpdate ();
+
+		if (Input.GetKeyDown(KeyCode.Q))
+        {
+            print("Rebuilding octree...");
+			UpdateMasterOctree();
+        }
+
 	}
 
 	public void DoChunkUpdate () {
@@ -142,6 +150,24 @@ public class Clipmap : MonoBehaviour {
 		}
 	}
 
+	void UpdateMasterOctree() {
+		RT.CS.NaiveCreator creator = new RT.CS.NaiveCreator();
+		RT.CS.Node sOctree = octree.ExtractSparseOctree();
+		int sphereIndex = 10000;
+		RT.SVOData data = creator.Create(sOctree, x => sphereIndex);
+		raytracingMaster.SetSVOBuffer(data);
+
+		Debug.Log("Num child descriptors: " + data.childDescriptors.Count);
+		string log = "SVO Trunk: \n";
+		log += "Compressed:\n" + string.Join("\n", data.childDescriptors.ConvertAll(code => new RT.CS.ChildDescriptor(code))) + "\n\n";
+		string path = Application.dataPath + "/trunkSVO.log";
+		System.IO.File.WriteAllText(path, log);
+
+		RT.SVOData sphereData = creator.Create (SampleFunctions.functions[1], 4);
+
+		raytracingMaster.SetSVOBuffer(sphereData, sphereIndex);
+	}
+
 	void UpdateArrayMin () {
 		for (int i = arrayMin; i < arrayMax; i++) {
 			if (chunkArray[i] != null) {
@@ -167,5 +193,4 @@ public class Clipmap : MonoBehaviour {
 
 		OctreeDebugger.DrawOctreeGizmosRecursive(octree.root, 1);
 	}
-
 }

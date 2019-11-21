@@ -22,6 +22,26 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 		return result;
 	}
+
+
+	// Returns offset of svo data for a leaf
+	public delegate int GetLeaf(Vector4Int position);
+
+	public SVOData Create(RT.CS.Node root, GetLeaf getLeaf = null) {
+		SVOData result = new SVOData();
+
+		List<int> nodes = new List<int>();
+		List<uint> attachments = new List<uint>();
+
+		CompressSVO(root, nodes, attachments, getLeaf);
+
+		result.childDescriptors = nodes;
+		result.attachments = attachments;
+
+		return result;
+	}
+
+
 	/*
 		Tree building methods
 
@@ -30,18 +50,9 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		Will return node if node contains surface.
 	 */
 	private Node BuildTree(Node node, int level, UtilFuncs.Sampler sample, int maxLevel) {
-		/*
-		
-		Grid[cx,cy,cz].Normal.X := (Grid[cx-1, cy, cz].Value-Grid[cx+1, cy, cz].Value)
-		Grid[cx,cy,cz].Normal.Y := (Grid[cx, cy-1, cz].Value-Grid[cx, cy+1, cz].Value)
-		Grid[cx,cy,cz].Normal.Z := (Grid[cx, cy, cz-1].Value-Grid[cx, cy, cz+1].Value)
-
-
-		 */
-
 		// Node is leaf. Determine if within surface. If so, return node.
-		if(node.Leaf) {
-			Vector3 p = node.Position + Vector3.one * (float)node.Size / 2;
+		if(node.leaf) {
+			Vector3 p = node.position + Vector3.one * (float)node.size / 2;
 			if(sample(p.x, p.y, p.z) <= 0 && IsEdge(node, sample)) {
 				// Node is on an edge, calculate normal and color
 				Vector3 normal = Vector3.zero;
@@ -52,7 +63,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 				normal = -Vector3.Normalize(normal);
 				node.normal = normal;
 				// node.Color = new Color(-Mathf.Clamp(normal.x, -1, 0), -Mathf.Clamp(normal.y, -1, 0), -Mathf.Clamp(normal.z, -1, 0), 1.0f);
-				node.color = new Color(node.Position.x - 1, node.Position.y - 1, node.Position.z - 1, 1.0f);
+				node.color = new Color(node.position.x - 1, node.position.y - 1, node.position.z - 1, 1.0f);
 				int encoded = encodeRawNormal16(normal);
 				//Vector3 decoded = Vector3.Normalize(decodeRawNormal16(encoded));
 
@@ -68,15 +79,15 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 			bool childExists = false;
 			int numLeaves = 0;
 			node.children = new Node[8];
-			float half = node.Size/2;
+			float half = node.size/2;
 
 			for(int i = 0; i < 8; i++) {
-				Node child = new Node(node.Position + Constants.vfoffsets[i] * (float)(half), half, level + 1, level + 1 == maxLevel);
+				Node child = new Node(node.position + Constants.vfoffsets[i] * (float)(half), half, level + 1, level + 1 == maxLevel);
 				node.children[i] = BuildTree(child, level + 1, sample, maxLevel);
 
 				if(node.children[i] != null) {
 					childExists = true;
-					if(node.children[i].Leaf) {
+					if(node.children[i].leaf) {
 						numLeaves++;
 					}
 				}
@@ -109,7 +120,7 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 	// Given that node resides inside the surface, detects if it's an edge voxel (has air next to it)
 	private bool IsEdge(Node node, UtilFuncs.Sampler sample) {
 		foreach(Vector3 direction in Constants.vdirections) {
-			Vector3 pos = node.GetCenter() + direction * (float)(node.Size);
+			Vector3 pos = node.GetCenter() + direction * (float)(node.size);
 			float s = sample(pos.x, pos.y, pos.z);
 			if(s > 0) {
 				return true;
@@ -118,14 +129,14 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 		return false;
 	}
 
-    private void CompressSVO(Node root, List<int> compressedNodes, List<uint> attachments) {
+    private void CompressSVO(Node root, List<int> compressedNodes, List<uint> attachments, GetLeaf getLeaf = null) {
 		compressedNodes.Add(0);
 		attachments.Add(0); attachments.Add(0);
-        CompressSVOAux(root, 0, compressedNodes, attachments);
+        CompressSVOAux(root, 0, compressedNodes, attachments, getLeaf);
     } 
 
-    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes, List<uint> attachments) {
-        if(node == null || node.Leaf) { return; }
+    private void CompressSVOAux(Node node, int nodeIndex, List<int> compressedNodes, List<uint> attachments, GetLeaf getLeaf = null) {
+        if(node == null || node.leaf) { return; }
 
 		int childPointer = 0;
         int validMask = 0;
@@ -141,8 +152,13 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
             if(node.children[childNum] != null) {
                 validMask |= bit;
 
-                if(node.children[childNum].Leaf) {
-                    leafMask |= bit;
+                if(node.children[childNum].leaf) {
+					if(getLeaf != null) {
+						Vector3 pos = node.children[childNum].position;
+						childPointer = getLeaf(new Vector4Int((int)pos.x, (int)pos.y, (int)pos.z, (int)node.children[childNum].size)) - nodeIndex;
+					} else {
+                    	leafMask |= bit;
+					}
                 }
 				else {
 					if(childPointer == 0) {
@@ -160,8 +176,8 @@ public class NaiveCreator : CompactSVO.CompactSVOCreator {
 
 		int childPointerClone = childPointer;
 		for(int childNum = 0; childNum < 8; childNum++) {
-			if(node.children[childNum] != null && !node.children[childNum].Leaf) {
-				CompressSVOAux(node.children[childNum], nodeIndex + childPointerClone++, compressedNodes, attachments);
+			if(node.children[childNum] != null && !node.children[childNum].leaf) {
+				CompressSVOAux(node.children[childNum], nodeIndex + childPointerClone++, compressedNodes, attachments, getLeaf);
 			}
 		}
 

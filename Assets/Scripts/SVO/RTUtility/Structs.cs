@@ -28,39 +28,39 @@ public struct ChildDescriptorInfo {
 
 // uncompressed, naive way to store nodes
 public class SVONode {
-	public float Size;
-	public bool Leaf;
-	public int Level;
-	public Vector3 Position;
+	public float size;
+	public bool leaf;
+	public int level;
+	public Vector3 position;
 
 	public SVONode() {}
 	public SVONode(Vector3 position, float size, bool leaf, int level) {
-		Size = size;
-		Leaf = leaf;
-		Level = level;
-		Position = position;
+		this.size = size;
+		this.leaf = leaf;
+		this.level = level;
+		this.position = position;
 	}
 
 	public virtual ColoredBox GetColoredBox() {
 		ColoredBox box = new ColoredBox();
 		box.Center = GetCenter();
-		box.Color = UtilFuncs.SinColor(Level * 2f);
+		box.Color = UtilFuncs.SinColor(level * 2f);
 		box.Color.a = 0.07f;
-		box.Size = Vector3.one * (float)Size;
+		box.Size = Vector3.one * (float)size;
 		return box;		
 	}
 
 	public Vector3 GetCenter() {
-		return Position + Vector3.one * ((float)Size / 2);
+		return position + Vector3.one * ((float)size / 2);
 	}
 
 	public SVONode GetChild(int childNum, bool leaf) {
-		Debug.Assert(!Leaf);
-		return new SVONode(Position + Constants.vfoffsets[childNum] * (float)Size/2, (float)Size/2, leaf, Level + 1);
+			Debug.Assert(!this.leaf);
+		return new SVONode(position + Constants.vfoffsets[childNum] * (float)size/2, (float)size/2, leaf, level + 1);
 	}
 
 	public override string ToString() {
-		return "[Node, Position " + Position.ToString("F4") + ", Size: " + Size + ", Leaf: " + Leaf + ", Level: " + Level + "]";
+		return "[Node, Position " + position.ToString("F4") + ", Size: " + size + ", Leaf: " + leaf + ", Level: " + level + "]";
 	}
 }
 

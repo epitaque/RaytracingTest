@@ -5,7 +5,6 @@
 #define SVO_SCALE_05 1.0f/64.0f
 #define SVO_SCALE_1 32.0f 
 
-StructuredBuffer<int> _SVO2; 
 StructuredBuffer<uint> _SVOAttachments; // 2 * size of _SVO
 
 #include "AttachmentLookup.compute"

@@ -10,6 +10,11 @@ public static class Constants {
 		new Vector3(0, 0, 1), new Vector3(0, 0, -1)
 	};
 
+	public static Vector3Int[] ioffsets = {
+		new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, 1, 0), new Vector3Int(1, 1, 0),
+		new Vector3Int(0, 0, 1), new Vector3Int(1, 0, 1), new Vector3Int(0, 1, 1), new Vector3Int(1, 1, 1)
+	};
+
 	public static Vector3[] vfoffsets2 = {
 		new Vector3(0, 0, 0), new Vector3(0, 0, 1), new Vector3(0, 1, 0), new Vector3(0, 1, 1),
 		new Vector3(1, 0, 0), new Vector3(1, 0, 1), new Vector3(1, 1, 0), new Vector3(1, 1, 1)

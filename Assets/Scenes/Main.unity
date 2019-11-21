@@ -242,7 +242,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   minimumChunkSize: 16
   radius: 4
-  lods: 1
+  lods: 2
+  raytracingMaster: {fileID: 1085055194}
 --- !u!4 &501959714
 Transform:
   m_ObjectHideFlags: 0

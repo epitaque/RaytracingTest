@@ -9,20 +9,20 @@ public class Node : SVONode {
 	public Color color;
 
 	public Node(Vector3 position, float size, int level, bool leaf) {
-		Position = position;
-		Size = size;
-		Level = level;
-		Leaf = leaf;
+		base.position = position;
+		base.size = size;
+		base.level = level;
+		base.leaf = leaf;
 		errorNode = false;
 		color = Color.red;
 		normal = Vector3.up;
 	}
 
 	public Node(Vector3 position, float size, int level, bool leaf, Vector3 normal, Color color) {
-		Position = position;
-		Size = size;
-		Level = level;
-		Leaf = leaf;
+		base.position = position;
+		base.size = size;
+		base.level = level;
+		base.leaf = leaf;
 		errorNode = false;
 		this.normal = normal;
 		this.color = color;
@@ -38,7 +38,7 @@ public class Node : SVONode {
 			box.Color = Color.red;
 		}
 		box.Color.a = 0.07f;
-		box.Size = Vector3.one * (float)Size;
+		box.Size = Vector3.one * (float)size;
 		return box;		
 	}
 

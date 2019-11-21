@@ -87,8 +87,29 @@ public class Octree {
 			root.index = 0;
 			SimplifyOctree();
 		}
+	}
 
-		
+	public RT.CS.Node ExtractSparseOctree() {
+		RT.CS.Node sRoot = new RT.CS.Node(root.position, root.size, 1, false);
+		ExtractSparseOctreeAux(root, sRoot);
+		return sRoot;
+	}
+
+	public void ExtractSparseOctreeAux(Node node, RT.CS.Node sNode) {
+		for(int i = 0; i < 8; i++) {
+			Node child = node.children[i];
+			if(child != null) {
+				if(sNode.children == null) { sNode.children = new RT.CS.Node[8]; }
+				sNode.children[i] = new RT.CS.Node(child.position, child.size, sNode.level + 1, false);
+				if(child.chunk != null) {
+					sNode.leaf = true;
+					sNode.color = UtilFuncs.SinColor(sNode.position.x + sNode.position.y + sNode.position.z);
+					sNode.normal = Vector3.up;
+				} else {
+					ExtractSparseOctreeAux(child, sNode.children[i]);
+				}
+			}
+		}
 	}
 
 	public Chunk FindChunk(Vector4 position) {
@@ -160,5 +181,5 @@ public class Octree {
 		return (byte)(1 << index);
 	}
 
-	
+
 }

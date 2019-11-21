@@ -21,13 +21,13 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
  
 		node.children = new Node[8]; 
 		int pointer = descriptor.childPointer;
-		float half = node.Size/2;
+		float half = node.size/2;
 
 		for(int childNum = 0; childNum < 8; childNum++) { 
 			if(descriptor.Valid(childNum)) {
 				bool leaf = descriptor.Leaf(childNum);
 
-				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
+				Node child = new Node(node.position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
 				node.children[childNum] = child;
 
 				if(!leaf) {
@@ -87,7 +87,7 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 		if(node == null || tx1 <= 0 || ty1 <= 0 || tz1 <= 0) { 
 			return;
 		}
-		if(node.Leaf){
+		if(node.leaf){
 			intersectedNodes.Add(node);
 			return;
 		}
@@ -134,7 +134,7 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
 		} while (currNode < 8);
 	}
  	private void RayStep(Node node, Vector3 rayOrigin, Vector3 rayDirection, List<Node> intersectedNodes)  {
-		Vector3 nodeMax = node.Position + Vector3.one * (float)node.Size;
+		Vector3 nodeMax = node.position + Vector3.one * (float)node.size;
 		sbyte a = 0;
  		if(rayDirection.x < 0) {
 			rayOrigin.x = -rayOrigin.x;
@@ -155,11 +155,11 @@ public class NaiveTracer : CompactSVO.CompactSVOTracer {
  		double divx = 1 / rayDirection.x; // IEEE stability fix
 		double divy = 1 / rayDirection.y;
 		double divz = 1 / rayDirection.z;
- 		double tx0 = (node.Position.x - rayOrigin.x) * divx;
+ 		double tx0 = (node.position.x - rayOrigin.x) * divx;
 		double tx1 = (nodeMax.x - rayOrigin.x) * divx;
-		double ty0 = (node.Position.y - rayOrigin.y) * divy;
+		double ty0 = (node.position.y - rayOrigin.y) * divy;
 		double ty1 = (nodeMax.y - rayOrigin.y) * divy;
-		double tz0 = (node.Position.z - rayOrigin.z) * divz;
+		double tz0 = (node.position.z - rayOrigin.z) * divz;
 		double tz1 = (nodeMax.z - rayOrigin.z) * divz;
 
  		if(Mathd.Max(tx0,ty0,tz0) < Mathd.Min(tx1,ty1,tz1)){ 		

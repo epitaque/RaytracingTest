@@ -21,13 +21,13 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
  
 		node.children = new Node[8]; 
 		int pointer = descriptor.childPointer;
-		float half = node.Size/2;
+		float half = node.size/2;
 
 		for(int childNum = 0; childNum < 8; childNum++) { 
 			if(descriptor.Valid(childNum)) {
 				bool leaf = descriptor.Leaf(childNum);
 
-				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
+				Node child = new Node(node.position + Constants.vfoffsets[childNum] * half, half, level + 1, leaf);
 				node.children[childNum] = child;
 
 				if(!leaf) {
@@ -106,8 +106,8 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		// when picking a child node
 		sbyte a = 0;
 
-		Vector3 nodeMin = root.Position;
-		Vector3 nodeMax = root.Position + Vector3.one * root.Size;
+		Vector3 nodeMin = root.position;
+		Vector3 nodeMax = root.position + Vector3.one * root.size;
 
  		if(rayDirection.x < 0) {
 			rayOrigin.x = (- (rayOrigin.x - 1.5f)) + 1.5f;
@@ -139,9 +139,9 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 		double ty_bias = rayOrigin.y * divy;
 		double tz_bias = rayOrigin.z * divz;
 
- 		double tx0 = root.Position.x * divx - tx_bias;
-		double ty0 = root.Position.y * divy - ty_bias;
-		double tz0 = root.Position.z * divz - tz_bias;
+ 		double tx0 = root.position.x * divx - tx_bias;
+		double ty0 = root.position.y * divy - ty_bias;
+		double tz0 = root.position.z * divz - tz_bias;
 		double tx1 = nodeMax.x * divx - tx_bias;
 		double ty1 = nodeMax.y * divy - ty_bias;
 		double tz1 = nodeMax.z * divz - tz_bias;
@@ -167,8 +167,8 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 			ParameterData data = stack[sf];
 			Node node = data.node;
 
-			if(node != null && pos.x != node.Position.x) {
-				Debug.Log("Pos.x != node.position.x. Pos.x: " + pos.x + ", node.position.x: " + node.Position.x);
+			if(node != null && pos.x != node.position.x) {
+				Debug.Log("Pos.x != node.position.x. Pos.x: " + pos.x + ", node.position.x: " + node.position.x);
 			}
 
 			t1 = data.t1;
@@ -189,7 +189,7 @@ public class IterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 				Debug.Log("Mistakenly added a node to be intersected...");
 			}
 
-			if(node.Leaf){
+			if(node.leaf){
 				intersectedNodes.Add(node);
 				pos = roundPosition(pos, sf);
 				sf--;

@@ -24,7 +24,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
  
 		node.children = new Node[8];
 		int pointer = descriptor.childPointer;
-		float half = node.Size/2f;
+		float half = node.size/2f;
 
 		if(svoNodes[nodeIndex] == null) {
 			svoNodes[nodeIndex] = node;
@@ -34,7 +34,7 @@ public class NVIDIAIterativeNaiveTracer : CompactSVO.CompactSVOTracer {
 			if(descriptor.Valid(childNum)) {
 				bool leaf = descriptor.Leaf(childNum);
 
-				Node child = new Node(node.Position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
+				Node child = new Node(node.position + Constants.vfoffsets[childNum] * (float)(half), half, level + 1, leaf);
 				node.children[childNum] = child;
 
 				if(!leaf) {

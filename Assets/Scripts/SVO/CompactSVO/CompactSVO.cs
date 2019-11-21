@@ -89,11 +89,6 @@ public class CompactSVO : SVO {
 		svo = creator.Create(sample, maxLevel).childDescriptors;
 	}
 
-	public void AddSlice(Slice slice) {
-		// make a new child descriptor for each leaf
-		// for()
-	}
-
     public List<SVONode> Trace(UnityEngine.Ray ray) {
         return tracer.Trace(ray, svo);
     }

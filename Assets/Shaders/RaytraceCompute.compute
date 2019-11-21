@@ -9,6 +9,7 @@ float4x4 _CameraInverseProjection;
 float2 _PixelOffset;
 float4 _DirectionalLight;
 static const float PI = 3.14159265f;
+StructuredBuffer<int> _SVO;
 
 struct Ray
 {
@@ -26,7 +27,7 @@ struct RayHit
 };
 
 #include "NVIDIASVO.compute" 
-#include "Clipmap.compute" 
+// #include "Clipmap.compute" 
 
 
 RayHit CreateRayHit()
@@ -83,8 +84,9 @@ RayHit Trace(Ray ray)
     RayHit bestHit = CreateRayHit();
     //IntersectGroundPlane(ray, bestHit);
 	//IntersectSphere(ray, bestHit, float4(0, 3.0f, 0, 1.0f));
-	IntersectClipmap(ray, bestHit);
-	
+	// IntersectClipmap(ray, bestHit);
+	IntersectSVO(ray, bestHit, _SVO);
+
     return bestHit;
 }
 

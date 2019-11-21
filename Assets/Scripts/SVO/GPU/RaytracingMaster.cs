@@ -20,12 +20,13 @@ public class RaytracingMaster : MonoBehaviour {
 	private void Awake () {
 		Application.targetFrameRate = 10000;
 		_camera = GetComponent<Camera> ();
+		InitializeSVOBuffer();
 		InitializeShaderParameters ();
 	}
 
 	private void InitializeShaderParameters () {
 		RayTracingShader.SetTexture (0, "_SkyboxTexture", SkyboxTexture);
-		SetSVOBuffer ();
+		// SetSVOBuffer ();
 	}
 
 	private void UpdateShaderParameters () {
@@ -34,7 +35,7 @@ public class RaytracingMaster : MonoBehaviour {
 		RayTracingShader.SetVector ("_PixelOffset", new Vector2 (Random.value, Random.value));
 		Vector3 l = DirectionalLight.transform.forward;
 		RayTracingShader.SetVector ("_DirectionalLight", new Vector4 (l.x, l.y, l.z, DirectionalLight.intensity));
-		RayTracingShader.SetBuffer (0, "_SVO1", _svoBuffer);
+		RayTracingShader.SetBuffer (0, "_SVO", _svoBuffer);
 		RayTracingShader.SetBuffer (0, "_SVOAttachments", _svoAttachmentsBuffer);
 
 	}
@@ -105,5 +106,31 @@ public class RaytracingMaster : MonoBehaviour {
 
 		_svoBuffer.SetData (data.childDescriptors);
 		_svoAttachmentsBuffer.SetData (data.attachments);
+	}
+
+	public void InitializeSVOBuffer() {
+		// one gibibyte of memory
+		int gibibyte = 1073741824;
+		_svoBuffer = new ComputeBuffer(gibibyte/8, 4);
+		_svoAttachmentsBuffer = new ComputeBuffer (gibibyte/8, 4);
+	}
+
+	public void SetSVOBuffer (RT.SVOData data, int offset = 0) {
+		Debug.Log ("Setting svo buffer...");
+
+		// _svoBuffer = new ComputeBuffer (data.childDescriptors.Count, 4);
+		// _svoAttachmentsBuffer = new ComputeBuffer (data.attachments.Count, 4);
+
+		// Print SVO
+		/* string output = "\n";
+		for(int i = 0; i < data.childDescriptors.Count; i++) {
+			int normal = (int)(data.attachments[i*2 + 1] >> 16);
+			output += "CD: " + new RT.CS.ChildDescriptor(data.childDescriptors[i]) + "\n"; //, Normal: v" + Vector3.Normalize(RT.CS.NaiveCreator.decodeRawNormal16(normal)) + System.Convert.ToString(normal, 2).PadLeft(16, '0') + "(" + normal + ")\n";
+		}
+
+		GUIUtility.systemCopyBuffer = output;*/
+
+		_svoBuffer.SetData (data.childDescriptors, 0, offset, data.childDescriptors.Count);
+		_svoAttachmentsBuffer.SetData (data.attachments, 0, offset, data.attachments.Count);
 	}
 }
