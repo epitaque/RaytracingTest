@@ -18,16 +18,17 @@ public static class SampleFunctions {
 		simplex = new SE.OpenSimplexNoise(7);
 		// Flat ground
 		functions[0] = (float x, float y, float z) => {
-			return y - 1.5f;
+			Debug.LogFormat("Sampling at {0} {1} {2}", x, y, z);
+			return 0.5f - y;
 		};
 		// Sphere
 		functions[1] = (float x, float y, float z) => {
-			Vector3 p = new Vector3((x-1.5f)*2f, (y-1.5f)*2f, (z-1.5f)*2f);
-			return Sphere(p.x, p.y, p.z, 1f);
+			Vector3 p = new Vector3(x-0.5f, y-0.5f, z-0.5f);
+			return Sphere(p.x, p.y, p.z, 0.25f);
 		};
 		// Simplex
 		functions[2] = (float x, float y, float z) => {
-			float r = 2f;
+			float r = 1132f;
 			return (float)simplex.Evaluate(x * r, y * r, z * r);
 		};
 		// Rotated Cuboid

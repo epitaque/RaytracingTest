@@ -2,10 +2,14 @@ using UnityEngine;
 
 namespace RT.SL {
 public static class SliceGenerator {
+
+
 	// "level" is the number of jumps needed to get to root
 	// Level 0 is 1x1x1 (1 bool)
 	// Level 1 is 2x2x2 (16 bools)
 	// Level 2 is 4x4x4 (64 bools), etc.
+
+	// a slice bool returns true if the cube contains a surface
 	public static bool[][,,] GetSlices(UtilFuncs.Sampler sample, int maxLevel) {
 		// generate deepest level first. then downsample
 
@@ -18,55 +22,48 @@ public static class SliceGenerator {
 
 		float factor = 1f / (float)maxResolution;
 		
-		int x = 0, y = 0, z = 0;
 		bool[] containsVoxel = new bool[maxLevel + 1];
 
+		int[,] directions = { {0, 0, 1}, {0, 1, 0}, {1, 0, 0}, {0, 0, -1}, {0, -1, 0}, {-1, 0, 0} };
+		int[,] offsets = {{0, 0, 0}, {0, 0, 1}, {0, 1, 0}, {0, 1, 1}, {1, 0, 0}, {1, 0, 1}, {1, 1, 0}, {1, 1, 1} };
+
 		for(int i = 0; i < maxResolution * maxResolution * maxResolution; i++) {
+			int x = 0, y = 0, z = 0;
 			MortonUtil.MortonDecode((ulong)i, ref x, ref y, ref z);
 			float density = sample((float)x * factor, (float)y * factor, (float)z * factor);
-			slices[maxLevel - 1][x,y,z] = density > 0;
-			containsVoxel[maxLevel - 2]++;
 
-			int j = i;
-			int depth2 = maxLevel - 2;
-			x /= 8; y /= 8; z /= 8;
-			while(j % 8 == 0) {
-				if(voxelCounts[depth2] > 1) {
-					slices[depth2][x,y,z] = true;
-					voxelCounts[depth2 - 1]++;
+			bool hasAirAsNeighbor = false;
+			for(int j = 0; j < 6 && !hasAirAsNeighbor; j++) {
+				float density2 = sample((float)(x + directions[j,0]) * factor, 
+										(float)(y + directions[j,1]) * factor, 
+										(float)(z + directions[j,2]) * factor);
+				hasAirAsNeighbor = density2 < 0;
+			}
+
+			slices[maxLevel][x,y,z] = (density > 0) && hasAirAsNeighbor;
+		}
+
+		for(int level = maxLevel - 1; level >= 0; level--) {
+			int res = (int)Mathf.Pow(2, level);
+
+			for(int x = 0; x < res; x++) {
+				for(int y = 0; y < res; y++) {
+					for(int z = 0; z < res; z++) {
+						bool containsSurface = false;
+
+						for(int i = 0; i < 8 && !containsSurface; i++) {
+							int x2 = x * 2 + offsets[i,0];
+							int y2 = y * 2 + offsets[i,1];
+							int z2 = z * 2 + offsets[i,2];
+
+							containsSurface = slices[level + 1][x2,y2,z2];
+						}
+
+						slices[level][x,y,z] = containsSurface;
+					}
 				}
-				if(voxelCounts[depth2] == 8) {
-					// erase
-				}
-				
-				voxelCounts[depth2] = 0;
-				j /= 8;
-				depth2--;
-				x /= 8; y /= 8; z /= 8;
 			}
 		}
-		// for(int x = 0; x < dim; x++) {
-		// 	for(int y = 0; y < dim; y++) {
-		// 		for(int z = 0; z < dim; z++) {
-
-		// 			slices[depth - 1][x,y,z] = density > 0;
-		// 		}
-		// 	}
-		// }
-
-		// for(int i = depth - 2; i >= 0; i--) {
-		// 	dim = (int)Mathf.Pow(2, i + 1);
-		// 	slices[i] = new bool[dim,dim,dim];
-
-		// 	for(int x = 0; x < dim; x++) {
-		// 		for(int y = 0; y < dim; y++) {
-		// 			for(int z = 0; z < dim; z++) {
-
-		// 			}
-		// 		}
-		// 	}
-
-		// }
 
 		return slices;
 	}
